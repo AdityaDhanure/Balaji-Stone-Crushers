@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS maintenance_record_parts (
   part_id INTEGER REFERENCES spare_parts(id),
   part_name VARCHAR(200),
   quantity_used INTEGER NOT NULL DEFAULT 1,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')
 );
 
 -- Add index for faster queries

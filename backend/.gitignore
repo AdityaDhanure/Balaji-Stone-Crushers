@@ -28,7 +28,7 @@ scripts/diagnostics/
 scripts/tests/
 scripts/auth/
 scripts/legacy-db/
-migrations/
+/migrations/
 
 # ──── IDE & Editor ────────────────────────────────────────────────────────────
 .idea/

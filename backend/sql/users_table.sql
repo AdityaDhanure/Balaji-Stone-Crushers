@@ -9,11 +9,9 @@ CREATE TABLE IF NOT EXISTS users (
   role VARCHAR(50) DEFAULT 'manager',
   is_active BOOLEAN DEFAULT true,
   last_login TIMESTAMP,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'),
+  updated_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')
 );
 
--- Insert default admin user (password: admin123)
-INSERT INTO users (username, email, password, phone, department, role)
-VALUES ('admin', 'admin@balaji.com', 'TEMP_WILL_BE_HASHED', '9876543210', 'Administration', 'admin')
-ON CONFLICT (username) DO NOTHING;
+-- Production note: create the admin user through the backend/application flow
+-- with a strong password and bcrypt hashing. Do not store default credentials.
