@@ -1,0 +1,205 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/constants/app_colors.dart';
+import '../../../../core/providers/app_refresh_provider.dart';
+import '../providers/diesel_provider.dart';
+import '../widgets/widgets.dart';
+
+class DieselListScreen extends ConsumerStatefulWidget {
+  const DieselListScreen({super.key});
+
+  @override
+  ConsumerState<DieselListScreen> createState() => _DieselListScreenState();
+}
+
+class _DieselListScreenState extends ConsumerState<DieselListScreen> with SingleTickerProviderStateMixin {
+  TabController? _tab;
+  bool _groupConsumptionByDate = false;
+  bool _groupPurchasesByDate = false;
+  List<dynamic> _dateGroupedConsumption = [];
+  bool _loadingDateConsumption = false;
+  int _lastRefresh = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _tab = TabController(length: 3, vsync: this);
+    Future.microtask(() => ref.read(dieselProvider.notifier).loadAllData());
+  }
+
+  @override
+  void dispose() { _tab?.dispose(); super.dispose(); }
+
+  Future<void> _loadDateGroupedConsumption() async {
+    setState(() => _loadingDateConsumption = true);
+    try {
+      final data = await ref.read(dieselProvider.notifier).getConsumptionGroupedByDate();
+      if (mounted) setState(() { _dateGroupedConsumption = data; _loadingDateConsumption = false; });
+    } catch (_) { if (mounted) setState(() => _loadingDateConsumption = false); }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final refresh = ref.watch(appRefreshProvider);
+    final state = ref.watch(dieselProvider);
+    final isSmall = MediaQuery.of(context).size.width < 800;
+
+    if (refresh != _lastRefresh) {
+      _lastRefresh = refresh;
+      Future.microtask(() => ref.read(dieselProvider.notifier).loadAllData());
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Stats card
+          Padding(
+            padding: EdgeInsets.fromLTRB(isSmall ? 12 : 20, isSmall ? 12 : 20, isSmall ? 12 : 20, 0),
+            child: DieselStockCard(stock: state.stockOverview),
+          ),
+          const SizedBox(height: 12),
+          // Boxed tab bar (billing style)
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: isSmall ? 12 : 20),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.border),
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2))],
+              ),
+              child: TabBar(
+                controller: _tab!,
+                labelColor: AppColors.primary,
+                unselectedLabelColor: AppColors.textSecondary,
+                indicator: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 12),
+                dividerColor: Colors.transparent,
+                padding: const EdgeInsets.all(4),
+                tabs: [
+                  _buildTab('Purchases', Icons.local_gas_station_rounded, state.purchases.length),
+                  _buildTab('Consumption', Icons.speed_rounded, state.consumption.length),
+                  _buildTab('Reports', Icons.bar_chart_rounded, state.pumpPayments.length),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Tab content
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: isSmall ? 12 : 20),
+              child: TabBarView(controller: _tab!, children: [
+                DieselPurchasesTab(
+                  purchases: state.purchases,
+                  isLoading: state.isLoading,
+                  groupPurchasesByDate: _groupPurchasesByDate,
+                  onToggleGroupBy: (v) => setState(() => _groupPurchasesByDate = v),
+                  onMarkPaid: (id) => ref.read(dieselProvider.notifier).markPurchasePaid(id),
+                ),
+                DieselConsumptionTab(
+                  consumption: state.consumption,
+                  groupConsumptionByDate: _groupConsumptionByDate,
+                  dateGroupedConsumption: _dateGroupedConsumption,
+                  loadingDateConsumption: _loadingDateConsumption,
+                  onLoadDateGroupedConsumption: _loadDateGroupedConsumption,
+                  onToggleGroupBy: (v) => setState(() => _groupConsumptionByDate = v),
+                  onEdit: _showEditConsumption,
+                ),
+                DieselReportsTab(pumpPayments: state.pumpPayments),
+              ]),
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: _FAB(onPressed: _showAdd),
+    );
+  }
+
+  Tab _buildTab(String label, IconData icon, int count) => Tab(
+    height: 44,
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 13),
+      const SizedBox(width: 4),
+      Text(label),
+      if (count > 0) ...[
+        const SizedBox(width: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+          decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+          child: Text('$count', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.primary)),
+        ),
+      ],
+    ]),
+  );
+
+  void _showAdd() {
+    AddDieselBottomSheet.show(
+      context,
+      onAddPurchase: (data) async {
+        final ok = await ref.read(dieselProvider.notifier).createPurchase(data);
+        if (ok && mounted) { Navigator.pop(context); _snack('Purchase added', AppColors.success); }
+      },
+      onAddConsumption: (data) async {
+        final ok = await ref.read(dieselProvider.notifier).createConsumption(data);
+        if (ok && mounted) { Navigator.pop(context); _snack('Consumption recorded', AppColors.success); }
+      },
+    );
+  }
+
+  void _showEditConsumption(DieselConsumption item) {
+    EditConsumptionSheet.show(
+      context,
+      consumption: item,
+      onUpdate: (data) async {
+        final nav = Navigator.of(context);
+        final ok = await ref.read(dieselProvider.notifier).updateConsumption(item.id, data);
+        if (!mounted) return;
+        if (ok) {
+          nav.pop();
+          _snack('Consumption updated', AppColors.success);
+          if (_groupConsumptionByDate) _loadDateGroupedConsumption();
+        }
+      },
+    );
+  }
+
+  void _snack(String msg, Color color) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    content: Text(msg), backgroundColor: color, behavior: SnackBarBehavior.floating,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), margin: const EdgeInsets.all(16),
+  ));
+}
+
+// ─── FAB ──────────────────────────────────────────────────────────────────────
+
+class _FAB extends StatelessWidget {
+  final VoidCallback onPressed;
+  const _FAB({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [AppColors.primary, AppColors.primaryLight], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: 0.4), blurRadius: 12, offset: const Offset(0, 4))],
+      ),
+      child: Material(color: Colors.transparent, borderRadius: BorderRadius.circular(16),
+          child: InkWell(onTap: onPressed, borderRadius: BorderRadius.circular(16),
+              child: const Padding(padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.add_rounded, color: Colors.white, size: 18),
+                    SizedBox(width: 8),
+                    Text('Add Entry', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
+                  ])))),
+    );
+  }
+}

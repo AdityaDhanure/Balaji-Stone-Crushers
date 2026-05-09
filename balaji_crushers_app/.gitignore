@@ -1,0 +1,58 @@
+# ──── Dart / Flutter / Pub ────────────────────────────────────────────────────
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+**/doc/api/
+**/ios/Flutter/.last_build_id
+migrate_working_dir/
+
+# ──── Generated / Build artefacts ─────────────────────────────────────────────
+
+# Android
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Windows
+/windows/flutter/generated_plugin_registrant.cc
+/windows/flutter/generated_plugin_registrant.h
+/windows/flutter/generated_plugins.cmake
+
+# Linux
+/linux/flutter/generated_plugin_registrant.cc
+/linux/flutter/generated_plugin_registrant.h
+/linux/flutter/generated_plugins.cmake
+
+# macOS / iOS
+/macos/Pods/
+/ios/Pods/
+/ios/Flutter/Flutter.framework
+/ios/Flutter/Flutter.podspec
+
+# ──── Release / Obfuscation ───────────────────────────────────────────────────
+app.*.symbols
+app.*.map.json
+
+# ──── IDE & Editor ────────────────────────────────────────────────────────────
+.idea/
+*.iml
+*.ipr
+*.iws
+.swiftpm/
+# .vscode/   ← uncomment to exclude VS Code workspace settings
+
+# ──── OS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.buildlog/
+.history
+.svn/
+
+# ──── Environment ─────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example

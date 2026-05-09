@@ -1,0 +1,46 @@
+# ──── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+
+# ──── Environment ─────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ──── Logs ────────────────────────────────────────────────────────────────────
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ──── Build & Output ──────────────────────────────────────────────────────────
+dist/
+build/
+
+# ──── Testing & Coverage ──────────────────────────────────────────────────────
+coverage/
+
+# ──── Local-only Scripts ──────────────────────────────────────────────────────
+# Keep production init/admin scripts under src/scripts in Git.
+# Keep these one-off development/debug helpers out of production commits.
+scripts/diagnostics/
+scripts/tests/
+scripts/auth/
+scripts/legacy-db/
+migrations/
+
+# ──── IDE & Editor ────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ──── OS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ──── Misc ────────────────────────────────────────────────────────────────────
+*.tmp
+*.temp
+nul

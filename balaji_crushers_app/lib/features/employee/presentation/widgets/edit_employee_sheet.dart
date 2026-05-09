@@ -1,0 +1,382 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import '../../../../core/constants/app_colors.dart';
+import '../../../../core/utils/ist_date_utils.dart';
+import '../providers/employee_provider.dart';
+
+class EditEmployeeSheet extends ConsumerStatefulWidget {
+  final Employee employee;
+  final Function(Map<String, dynamic>) onSave;
+
+  const EditEmployeeSheet({super.key, required this.employee, required this.onSave});
+
+  @override
+  ConsumerState<EditEmployeeSheet> createState() => _EditEmployeeSheetState();
+}
+
+class _EditEmployeeSheetState extends ConsumerState<EditEmployeeSheet> {
+  late TextEditingController _codeController;
+  late TextEditingController _firstNameController;
+  late TextEditingController _lastNameController;
+  late TextEditingController _phoneController;
+  late TextEditingController _emailController;
+  late TextEditingController _designationController;
+  late TextEditingController _salaryController;
+  late TextEditingController _aadhaarController;
+  late TextEditingController _panController;
+  late TextEditingController _upiIdController;
+  late TextEditingController _addressController;
+
+  int? _selectedDepartmentId;
+  String _employeeType = 'permanent';
+  DateTime _dateOfJoining = appTodayIstDate();
+  bool _isActive = true;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.employee;
+    _codeController = TextEditingController(text: e.employeeCode);
+    _firstNameController = TextEditingController(text: e.firstName);
+    _lastNameController = TextEditingController(text: e.lastName ?? '');
+    _phoneController = TextEditingController(text: e.phone ?? '');
+    _emailController = TextEditingController(text: e.email ?? '');
+    _designationController = TextEditingController(text: e.designation ?? '');
+    _salaryController = TextEditingController(text: e.salary.toStringAsFixed(0));
+    _aadhaarController = TextEditingController(text: e.aadhaarNumber ?? '');
+    _panController = TextEditingController(text: e.panNumber ?? '');
+    _upiIdController = TextEditingController(text: e.upiId ?? '');
+    _addressController = TextEditingController(text: e.address ?? '');
+    _selectedDepartmentId = e.departmentId;
+    _employeeType = e.employeeType;
+    _dateOfJoining = appParseIstDate(e.dateOfJoining) ?? appTodayIstDate();
+    _isActive = e.isActive;
+
+    Future.microtask(() => ref.read(employeeProvider.notifier).loadDepartments());
+  }
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    _designationController.dispose();
+    _salaryController.dispose();
+    _aadhaarController.dispose();
+    _panController.dispose();
+    _upiIdController.dispose();
+    _addressController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_firstNameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('First name is required'), backgroundColor: AppColors.error));
+      return;
+    }
+    setState(() => _isSaving = true);
+    await widget.onSave({
+      'first_name': _firstNameController.text.trim(),
+      'last_name': _lastNameController.text.trim().isEmpty ? null : _lastNameController.text.trim(),
+      'phone': _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
+      'email': _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+      'department_id': _selectedDepartmentId,
+      'designation': _designationController.text.trim().isEmpty ? null : _designationController.text.trim(),
+      'employee_type': _employeeType,
+      'date_of_joining': appDateParam(_dateOfJoining),
+      'salary': double.tryParse(_salaryController.text) ?? 0,
+      'aadhaar_number': _aadhaarController.text.trim().isEmpty ? null : _aadhaarController.text.trim(),
+      'pan_number': _panController.text.trim().isEmpty ? null : _panController.text.trim(),
+      'upi_id': _upiIdController.text.trim().isEmpty ? null : _upiIdController.text.trim(),
+      'address': _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
+      'is_active': _isActive,
+    });
+    if (mounted) setState(() => _isSaving = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final departments = ref.watch(employeeProvider).departments;
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.92,
+      decoration: const BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        children: [
+          Container(width: 40, height: 4, margin: const EdgeInsets.symmetric(vertical: 10), decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 12, 12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: AppColors.accent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.edit_rounded, color: AppColors.accent, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Edit Employee', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      Text(widget.employee.fullName, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+                IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: AppColors.border),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  _FormSection(
+                    title: 'Basic Information',
+                    icon: Icons.person_outline_rounded,
+                    children: [
+                      _buildField(_codeController, 'Employee Code', enabled: false, icon: Icons.badge_outlined),
+                      const SizedBox(height: 12),
+                      Row(children: [
+                        Expanded(child: _buildField(_firstNameController, 'First Name *', icon: Icons.person_outline)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildField(_lastNameController, 'Last Name', icon: Icons.person_outline)),
+                      ]),
+                      const SizedBox(height: 12),
+                      Row(children: [
+                        Expanded(child: _buildField(_phoneController, 'Phone', icon: Icons.phone_outlined, keyboard: TextInputType.phone)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildField(_emailController, 'Email', icon: Icons.email_outlined, keyboard: TextInputType.emailAddress)),
+                      ]),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _FormSection(
+                    title: 'Employment Details',
+                    icon: Icons.work_outline_rounded,
+                    children: [
+                      Row(children: [
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            initialValue: _selectedDepartmentId,
+                            decoration: _inputDecoration('Department', Icons.business_outlined),
+                            items: departments.map<DropdownMenuItem<int>>((d) => DropdownMenuItem(value: d.id, child: Text(d.name, overflow: TextOverflow.ellipsis))).toList(),
+                            onChanged: (v) => setState(() => _selectedDepartmentId = v),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildField(_designationController, 'Designation', icon: Icons.work_outline)),
+                      ]),
+                      const SizedBox(height: 12),
+                      Row(children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _employeeType,
+                            decoration: _inputDecoration('Employee Type', Icons.category_outlined),
+                            items: const [
+                              DropdownMenuItem(value: 'permanent', child: Text('Permanent')),
+                              DropdownMenuItem(value: 'contract', child: Text('Contract')),
+                              DropdownMenuItem(value: 'daily', child: Text('Daily Wager')),
+                            ],
+                            onChanged: (v) => setState(() => _employeeType = v!),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: InkWell(
+                            onTap: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: _dateOfJoining,
+                                firstDate: DateTime(2010),
+                                lastDate: appTodayIstDate(),
+                              );
+                              if (picked != null) setState(() => _dateOfJoining = picked);
+                            },
+                            child: InputDecorator(
+                              decoration: _inputDecoration('Joining Date', Icons.calendar_today_outlined),
+                              child: Text(DateFormat('dd MMM yyyy').format(_dateOfJoining), style: const TextStyle(fontSize: 14)),
+                            ),
+                          ),
+                        ),
+                      ]),
+                      const SizedBox(height: 12),
+                      _buildField(_salaryController, 'Monthly Salary', icon: Icons.currency_rupee_outlined, keyboard: TextInputType.number, prefix: '₹ '),
+                      const SizedBox(height: 12),
+                      // Active status toggle
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: (_isActive ? AppColors.success : AppColors.error).withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: (_isActive ? AppColors.success : AppColors.error).withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _isActive ? Icons.check_circle_outline_rounded : Icons.cancel_outlined,
+                              color: _isActive ? AppColors.success : AppColors.error,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Active Status', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                                  Text(
+                                    _isActive ? 'Employee is currently active' : 'Employee is inactive',
+                                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch(
+                              value: _isActive,
+                              onChanged: (v) => setState(() => _isActive = v),
+                              activeThumbColor: AppColors.success,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _FormSection(
+                    title: 'Identity & Payment',
+                    icon: Icons.credit_card_outlined,
+                    children: [
+                      Row(children: [
+                        Expanded(child: _buildField(_aadhaarController, 'Aadhaar Number', icon: Icons.credit_card_outlined)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildField(_panController, 'PAN Number', icon: Icons.badge_outlined)),
+                      ]),
+                      const SizedBox(height: 12),
+                      _buildField(_upiIdController, 'UPI ID', icon: Icons.payments_outlined),
+                      const SizedBox(height: 12),
+                      _buildField(_addressController, 'Address', icon: Icons.location_on_outlined, maxLines: 2),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Save button
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              border: Border(top: BorderSide(color: AppColors.border)),
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -4))],
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: _isSaving ? null : _submit,
+                icon: _isSaving
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.save_rounded, size: 18),
+                label: Text(_isSaving ? 'Saving...' : 'Update Employee', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.accent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildField(TextEditingController ctrl, String label, {
+    bool enabled = true,
+    IconData? icon,
+    TextInputType keyboard = TextInputType.text,
+    String? prefix,
+    int maxLines = 1,
+  }) {
+    return TextFormField(
+      controller: ctrl,
+      enabled: enabled,
+      keyboardType: keyboard,
+      maxLines: maxLines,
+      style: const TextStyle(fontSize: 14),
+      decoration: _inputDecoration(label, icon, prefix: prefix),
+    );
+  }
+
+  InputDecoration _inputDecoration(String label, IconData? icon, {String? prefix}) {
+    return InputDecoration(
+      labelText: label,
+      prefixText: prefix,
+      prefixIcon: icon != null ? Icon(icon, size: 18, color: AppColors.textSecondary) : null,
+      filled: true,
+      fillColor: AppColors.surface,
+      labelStyle: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+      disabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.border.withValues(alpha: 0.5))),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+    );
+  }
+}
+
+// Re-use FormSection from add_employee_sheet
+class _FormSection extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final List<Widget> children;
+
+  const _FormSection({required this.title, required this.icon, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(color: AppColors.accent.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8)),
+                  child: Icon(icon, size: 15, color: AppColors.accent),
+                ),
+                const SizedBox(width: 8),
+                Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: AppColors.border),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+          ),
+        ],
+      ),
+    );
+  }
+}

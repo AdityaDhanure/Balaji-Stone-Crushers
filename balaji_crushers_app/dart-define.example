@@ -1,0 +1,31 @@
+# Flutter Build-Time Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+# This project uses --dart-define flags instead of a .env file.
+# Flutter apps are compiled — there is no runtime .env loading.
+#
+# Pass these flags to `flutter run` or `flutter build`:
+#
+# USAGE EXAMPLES
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Windows desktop (development — default, no flag needed):
+#   flutter run -d windows
+#
+# Android emulator:
+#   flutter run -d android --dart-define=API_BASE_URL=http://10.0.2.2:5000/api/v1
+#
+# Android physical device (replace IP with your PC's local IP):
+#   flutter run -d android --dart-define=API_BASE_URL=http://192.168.1.100:5000/api/v1
+#
+# Production APK build (replace with real server URL):
+#   flutter build apk --dart-define=API_BASE_URL=https://api.your-server.com/api/v1
+#
+# Production Windows build:
+#   flutter build windows --dart-define=API_BASE_URL=https://api.your-server.com/api/v1
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# AVAILABLE DART-DEFINE KEYS
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# API_BASE_URL   — Full base URL of the backend API (including /api/v1)
+#                  Default: http://localhost:5000/api/v1
