@@ -1,7 +1,6 @@
 import { createClient } from 'redis';
+import { REDIS_URL, CACHE_TTL } from '../config/env.js';
 
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
-const CACHE_TTL = process.env.CACHE_TTL || 300;
 
 let redisClient = null;
 let redisConnected = false;
@@ -13,21 +12,21 @@ export const initializeRedis = async () => {
   if (redisInitAttempted) {
     return redisConnected;
   }
-  
+
   redisInitAttempted = true;
-  
+
   try {
     redisClient = createClient({ url: REDIS_URL });
-    
+
     redisClient.on('error', (err) => {
       if (!redisInitAttempted) return;
       redisConnected = false;
     });
-    
+
     redisClient.on('end', () => {
       redisConnected = false;
     });
-    
+
     await redisClient.connect();
     redisConnected = true;
     console.log(`✅ Redis connected successfully on port 6379!`);
@@ -44,11 +43,11 @@ export const getRedisClient = async () => {
   if (redisClient && redisConnected) {
     return redisClient;
   }
-  
+
   if (!redisClient && !redisInitAttempted) {
     await initializeRedis();
   }
-  
+
   return redisConnected ? redisClient : null;
 };
 
@@ -56,7 +55,7 @@ export const cacheGet = async (key) => {
   try {
     const client = await getRedisClient();
     if (!client) return null;
-    
+
     const data = await client.get(key);
     if (data) {
       console.log(`📦 Cache HIT: ${key}`);
@@ -73,7 +72,7 @@ export const cacheSet = async (key, value, ttl = CACHE_TTL) => {
   try {
     const client = await getRedisClient();
     if (!client) return false;
-    
+
     await client.setEx(key, ttl, JSON.stringify(value));
     return true;
   } catch (err) {
@@ -85,7 +84,7 @@ export const cacheDel = async (key) => {
   try {
     const client = await getRedisClient();
     if (!client) return false;
-    
+
     await client.del(key);
     return true;
   } catch (err) {
@@ -97,7 +96,7 @@ export const cacheDelPattern = async (pattern) => {
   try {
     const client = await getRedisClient();
     if (!client) return false;
-    
+
     const keys = [];
     let cursor = '0';
 

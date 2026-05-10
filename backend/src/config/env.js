@@ -21,3 +21,7 @@ export { DATABASE_URL };
 export const JWT_SECRET = process.env.JWT_SECRET || 'default_secret_key';
 // Token expiration time (default: 7 days)
 export const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+// Redis connection URL (optional — server falls back gracefully if unavailable)
+export const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+// Redis cache TTL in seconds (default: 5 minutes)
+export const CACHE_TTL = parseInt(process.env.CACHE_TTL || '300', 10);
