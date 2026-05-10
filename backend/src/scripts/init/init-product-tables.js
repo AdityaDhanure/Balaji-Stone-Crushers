@@ -83,8 +83,7 @@ async function initProductTables() {
         ('AGG-10', '10mm Aggregates', ${categoryMap['Aggregates'] || 'NULL'}, 10, '10mm crushed stone aggregates'),
         ('AGG-6', '6mm Aggregates', ${categoryMap['Aggregates'] || 'NULL'}, 6, '6mm crushed stone aggregates'),
         ('DUST-S', 'Stone Dust', ${categoryMap['Dust'] || 'NULL'}, 0, 'Fine stone dust'),
-        ('GSB-40', 'GSB Material', ${categoryMap['Granular Sub Base (GSB)'] || 'NULL'}, 40, 'Granular Sub Base for road construction'),
-        ('RB-65', 'Railway Ballast', ${categoryMap['Railway Ballast'] || 'NULL'}, 65, 'Railway ballast material')
+        ('GSB-40', 'GSB Material', ${categoryMap['Granular Sub Base (GSB)'] || 'NULL'}, 40, 'Granular Sub Base for road construction')
       ON CONFLICT (product_code) DO NOTHING;
     `);
     console.log('Inserted default products');

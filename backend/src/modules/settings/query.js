@@ -12,11 +12,11 @@ export const DEFAULT_SETTINGS = [
   // ── Company ────────────────────────────────────────────────────────────────
   { key: 'company_name',        value: 'Balaji Stone Crushers',        category: SETTING_CATEGORIES.COMPANY, description: 'Company name' },
   { key: 'company_address',     value: 'Bhande Gaon, Khultabad, Maharashtra',       category: SETTING_CATEGORIES.COMPANY, description: 'Company address' },
-  { key: 'company_phone',       value: '9097015050',                   category: SETTING_CATEGORIES.COMPANY, description: 'Company contact number' },
-  { key: 'company_email',       value: 'info@balajicrushers.com',      category: SETTING_CATEGORIES.COMPANY, description: 'Company email' },
+  { key: 'company_phone',       value: '',                   category: SETTING_CATEGORIES.COMPANY, description: 'Company contact number' },
+  { key: 'company_email',       value: '',      category: SETTING_CATEGORIES.COMPANY, description: 'Company email' },
   { key: 'company_website',     value: '',                             category: SETTING_CATEGORIES.COMPANY, description: 'Company website URL' },
-  { key: 'gst_number',          value: '37AAACR1234P1Z5',             category: SETTING_CATEGORIES.COMPANY, description: 'GST Number' },
-  { key: 'company_pan',         value: 'ABCD1234F',                             category: SETTING_CATEGORIES.COMPANY, description: 'PAN Number' },
+  { key: 'gst_number',          value: '',             category: SETTING_CATEGORIES.COMPANY, description: 'GST Number' },
+  { key: 'company_pan',         value: '',                             category: SETTING_CATEGORIES.COMPANY, description: 'PAN Number' },
   { key: 'company_state_code',  value: '27',                          category: SETTING_CATEGORIES.COMPANY, description: 'State code for GST (e.g. 27 for Maharashtra)' },
   { key: 'default_currency',    value: 'INR',                         category: SETTING_CATEGORIES.COMPANY, description: 'Default currency' },
   // ── Bank Details ─────────────────────────────────────────────────────────────

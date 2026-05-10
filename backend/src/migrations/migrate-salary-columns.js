@@ -2,7 +2,7 @@ import pg from 'pg';
 const { Pool } = pg;
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_CSTxydf97hwV@ep-frosty-hat-a1b4bvqk-pooler.ap-southeast-1.aws.neon.tech/balaji-crushers?sslmode=require',
+  connectionString: process.env.DATABASE_URL || '',
   ssl: { rejectUnauthorized: false }
 });
 

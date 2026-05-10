@@ -35,10 +35,10 @@ await db.query(`
     await db.query(`
       INSERT INTO app_settings (setting_key, setting_value, description) VALUES
         ('company_name', 'Balaji Stone Crushers', 'Company name'),
-        ('company_address', 'Kadapa, Andhra Pradesh', 'Company address'),
-        ('company_phone', '9876543210', 'Company contact number'),
-        ('company_email', 'info@balajicrushers.com', 'Company email'),
-        ('gst_number', '37AAACR1234P1Z5', 'GST Number'),
+        ('company_address', 'Bhande Gaon, Khultabad, Maharashtra', 'Company address'),
+        ('company_phone', '', 'Company contact number'),
+        ('company_email', '', 'Company email'),
+        ('gst_number', '', 'GST Number'),
         ('default_currency', 'INR', 'Default currency'),
         ('invoice_prefix', 'INV', 'Invoice number prefix'),
         ('invoice_footer', 'Thank you for your business!', 'Invoice footer text'),
