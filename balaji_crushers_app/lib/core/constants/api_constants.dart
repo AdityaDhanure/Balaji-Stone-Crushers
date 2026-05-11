@@ -12,7 +12,7 @@ class ApiConstants {
   // Falls back to localhost for Windows desktop development when no flag is passed.
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:5000/api/v1',
+    defaultValue: '',
   );
 
   static Map<String, String> get headers => {
