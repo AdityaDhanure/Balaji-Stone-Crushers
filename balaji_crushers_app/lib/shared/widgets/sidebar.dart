@@ -137,17 +137,16 @@ class _SidebarHeader extends StatelessWidget {
           width: 42,
           height: 42,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [AppColors.accent, AppColors.accentLight],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
             borderRadius: BorderRadius.circular(11),
             boxShadow: [
               BoxShadow(color: AppColors.accent.withValues(alpha: 0.5), blurRadius: 12, offset: const Offset(0, 3)),
             ],
           ),
-          child: const Icon(Icons.landscape_rounded, color: Colors.white, size: 22),
+          clipBehavior: Clip.antiAlias,
+          child: Image.asset(
+            'assets/images/logo.png',
+            fit: BoxFit.cover,
+          ),
         ),
         const SizedBox(width: 11),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
