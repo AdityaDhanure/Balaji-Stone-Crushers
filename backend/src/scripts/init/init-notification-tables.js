@@ -33,17 +33,27 @@ await db.query(`
   const settingsCount = await db.query('SELECT COUNT(*) FROM app_settings');
   if (parseInt(settingsCount.rows[0].count) === 0) {
     await db.query(`
-      INSERT INTO app_settings (setting_key, setting_value, description) VALUES
-        ('company_name', 'Balaji Stone Crushers', 'Company name'),
-        ('company_address', 'Bhande Gaon, Khultabad, Maharashtra', 'Company address'),
-        ('company_phone', '', 'Company contact number'),
-        ('company_email', '', 'Company email'),
-        ('gst_number', '', 'GST Number'),
-        ('default_currency', 'INR', 'Default currency'),
-        ('invoice_prefix', 'INV', 'Invoice number prefix'),
-        ('invoice_footer', 'Thank you for your business!', 'Invoice footer text'),
-        ('low_diesel_threshold', '500', 'Low diesel stock alert threshold (liters)'),
-        ('vehicle_document_alert_days', '30', 'Days before document expiry to alert')
+      INSERT INTO app_settings (setting_key, setting_value, category, description) VALUES
+        ('company_name', 'Balaji Stone Crushers', 'company', 'Company name'),
+        ('company_address', 'Bhande Gaon, Khultabad, Maharashtra', 'company', 'Company address'),
+        ('company_phone', '', 'company', 'Company contact number'),
+        ('company_email', '', 'company', 'Company email'),
+        ('company_website', '', 'company', 'Company website URL'),
+        ('gst_number', '', 'company', 'GST Number'),
+        ('company_pan', '', 'company', 'PAN Number'),
+        ('company_state_code', '27', 'company', 'State code for GST'),
+        ('default_currency', 'INR', 'company', 'Default currency'),
+        ('company_bank_name', '', 'company', 'Bank name for invoice payment'),
+        ('company_bank_account', '', 'company', 'Bank account number'),
+        ('company_bank_ifsc', '', 'company', 'Bank IFSC code'),
+        ('invoice_prefix', 'INV', 'invoice', 'Invoice number prefix'),
+        ('invoice_footer', 'Thank you for your business!', 'invoice', 'Invoice footer text'),
+        ('invoice_terms', 'Payment due within 30 days.', 'invoice', 'Invoice terms and conditions'),
+        ('invoice_due_days', '30', 'invoice', 'Default payment due days'),
+        ('invoice_tax_rate', '18', 'invoice', 'Default GST/tax rate percentage'),
+        ('low_diesel_threshold', '500', 'alert', 'Low diesel stock alert threshold (liters)'),
+        ('vehicle_document_alert_days', '30', 'alert', 'Days before document expiry to alert'),
+        ('maintenance_alert_days', '7', 'alert', 'Days before scheduled maintenance to alert')
       ON CONFLICT (setting_key) DO NOTHING;
     `);
     console.log('Inserted default settings');

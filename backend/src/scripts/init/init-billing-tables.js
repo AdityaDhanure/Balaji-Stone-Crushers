@@ -7,6 +7,7 @@ async function initBillingTables() {
     CREATE TABLE IF NOT EXISTS invoices (
       id SERIAL PRIMARY KEY,
       invoice_number VARCHAR(50) UNIQUE NOT NULL,
+      bill_no VARCHAR(100) DEFAULT NULL,
       customer_id INTEGER REFERENCES customers(id),
       invoice_date DATE DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date),
       due_date DATE,
@@ -24,6 +25,11 @@ async function initBillingTables() {
     );
   `);
   console.log('Created invoices table');
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_invoices_bill_no ON invoices (bill_no);
+  `);
+  console.log('Created invoice bill number index');
 
   await db.query(`
     CREATE TABLE IF NOT EXISTS invoice_items (

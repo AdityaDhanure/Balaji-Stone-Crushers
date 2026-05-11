@@ -1,5 +1,4 @@
 import db from '../../config/db.js';
-import { todayIst } from '../../utils/istDateTime.js';
 
 async function initSalaryTables() {
   console.log('Initializing salary tables...');
@@ -89,6 +88,20 @@ async function initSalaryTables() {
   `);
   console.log('Created salary_deductions table');
 
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS salary_earnings (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      type VARCHAR(50) NOT NULL DEFAULT 'other',
+      calculation_type VARCHAR(20) NOT NULL DEFAULT 'percentage',
+      value DECIMAL(10,4) NOT NULL DEFAULT 0,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      description TEXT,
+      created_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')
+    );
+  `);
+  console.log('Created salary_earnings table');
+
   const dedCount = await db.query('SELECT COUNT(*) FROM salary_deductions');
   if (parseInt(dedCount.rows[0].count) === 0) {
     await db.query(`
@@ -101,22 +114,15 @@ async function initSalaryTables() {
     console.log('Inserted default deductions');
   }
 
-  const periodCount = await db.query('SELECT COUNT(*) FROM salary_periods');
-  if (parseInt(periodCount.rows[0].count) === 0) {
-    const [currentYear, currentMonth] = todayIst().split('-').map(Number);
-    for (let i = 0; i < 3; i++) {
-      const date = new Date(Date.UTC(currentYear, currentMonth - 1 - i, 1));
-      const year = date.getUTCFullYear();
-      const month = date.getUTCMonth() + 1;
-      const startDate = new Date(Date.UTC(year, month - 1, 1));
-      const endDate = new Date(Date.UTC(year, month, 0));
-      await db.query(`
-        INSERT INTO salary_periods (year, month, start_date, end_date)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (year, month) DO NOTHING
-      `, [year, month, startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]]);
-    }
-    console.log('Inserted current and previous salary periods');
+  const earningCount = await db.query('SELECT COUNT(*) FROM salary_earnings');
+  if (parseInt(earningCount.rows[0].count) === 0) {
+    await db.query(`
+      INSERT INTO salary_earnings (name, type, calculation_type, value, description) VALUES
+        ('House Rent Allowance (HRA)', 'hra', 'percentage', 10, 'HRA = 10% of basic salary'),
+        ('House Allowance', 'allowance', 'percentage', 5, 'House allowance = 5% of basic salary')
+      ON CONFLICT DO NOTHING;
+    `);
+    console.log('Inserted default earnings');
   }
 
   console.log('Salary tables initialized successfully!');

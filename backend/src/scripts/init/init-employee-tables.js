@@ -97,23 +97,7 @@ async function initEmployeeTables() {
     console.log('Inserted default departments');
   }
 
-  const empCount = await db.query('SELECT COUNT(*) FROM employees');
-  if (parseInt(empCount.rows[0].count) === 0) {
-    const depts = await db.query('SELECT id, name FROM departments');
-    const deptMap = {};
-    depts.rows.forEach(d => { deptMap[d.name] = d.id; });
-
-    await db.query(`
-      INSERT INTO employees (employee_code, first_name, last_name, phone, department_id, designation, employee_type, salary, date_of_joining) VALUES
-        ('EMP-001', 'Ramesh', 'Reddy', '9876543210', ${deptMap['Operations'] || 'NULL'}, 'Site Supervisor', 'permanent', 25000, '2020-01-15'),
-        ('EMP-002', 'Krishna', 'Murthy', '9876543211', ${deptMap['Operations'] || 'NULL'}, 'Crusher Operator', 'permanent', 20000, '2020-03-01'),
-        ('EMP-003', 'Anjaneyulu', 'Naidu', '9876543212', ${deptMap['Maintenance'] || 'NULL'}, 'Mechanic', 'permanent', 22000, '2020-02-10'),
-        ('EMP-004', 'Venkat', 'Rao', '9876543213', ${deptMap['Transport'] || 'NULL'}, 'Driver', 'permanent', 18000, '2020-04-05'),
-        ('EMP-005', 'Ravi', 'Kumar', '9876543214', ${deptMap['Administration'] || 'NULL'}, 'Manager', 'permanent', 40000, '2019-06-01')
-      ON CONFLICT (employee_code) DO NOTHING;
-    `);
-    console.log('Inserted sample employees');
-  }
+  // No demo employees inserted — real employees will be onboarded by the business after go-live.
 
   console.log('Employee tables initialized successfully!');
   process.exit(0);

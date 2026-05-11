@@ -9,10 +9,12 @@ async function initUsersTable() {
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         username VARCHAR(50) UNIQUE NOT NULL,
+        name VARCHAR(100),
         email VARCHAR(100) UNIQUE,
         password VARCHAR(255) NOT NULL,
         phone VARCHAR(20),
         department VARCHAR(100),
+        designation VARCHAR(100),
         role VARCHAR(50) DEFAULT 'manager',
         is_active BOOLEAN DEFAULT true,
         last_login TIMESTAMP,
@@ -28,8 +30,8 @@ async function initUsersTable() {
     if (result.rows.length === 0) {
       const hashedPassword = await bcrypt.hash('admin123', 10);
       await db.query(`
-        INSERT INTO users (username, email, password, phone, department, role)
-        VALUES ('admin', 'admin@balaji.com', $1, '9876543210', 'Administration', 'admin')
+        INSERT INTO users (username, name, email, password, phone, department, role)
+        VALUES ('admin', 'admin', 'admin@balaji.com', $1, '9876543210', 'Administration', 'admin')
       `, [hashedPassword]);
       console.log('✅ Created default admin user (username: admin, password: admin123)');
     } else if (result.rows[0].password === 'TEMP_WILL_BE_HASHED') {

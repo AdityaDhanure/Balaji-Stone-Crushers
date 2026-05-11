@@ -51,18 +51,7 @@ async function initNewTables() {
   `);
   console.log('Created parts_used table');
 
-  const vendorCount = await db.query('SELECT COUNT(*) FROM maintenance_vendors');
-  if (parseInt(vendorCount.rows[0].count) === 0) {
-    await db.query(`
-      INSERT INTO maintenance_vendors (name, contact_person, phone, specialization) VALUES
-        ('ABC Crushers Service', 'John Kumar', '9876543210', 'Crusher Repair'),
-        ('Spare Parts Center', 'Rajesh', '9800000000', 'Spare Parts'),
-        ('Diesel Solutions', 'Mike', '9900000000', 'Generator Service'),
-        ('Belt & Rubber Co', 'Suresh', '9850000000', 'Conveyor Belts')
-      ON CONFLICT DO NOTHING;
-    `);
-    console.log('Inserted sample vendors');
-  }
+  // No demo vendors inserted — real vendors will be added by the business after go-live.
 
   const partCount = await db.query('SELECT COUNT(*) FROM spare_parts WHERE is_predefined = true');
   if (parseInt(partCount.rows[0].count) === 0) {

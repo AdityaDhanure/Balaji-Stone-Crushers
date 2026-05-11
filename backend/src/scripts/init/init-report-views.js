@@ -43,13 +43,13 @@ async function initReportViews() {
       p.category_id,
       pc.name as category_name,
       dp.quantity_tons as total_tons,
-      COALESCE(cr.rate_per_brass, 0) as rate,
-      dp.quantity_tons * COALESCE(cr.rate_per_brass, 0) as total_value
+      COALESCE(cr.selling_rate_per_brass, 0) as rate,
+      dp.quantity_tons * COALESCE(cr.selling_rate_per_brass, 0) as total_value
     FROM daily_production dp
     JOIN products p ON dp.product_id = p.id
     JOIN product_categories pc ON p.category_id = pc.id
     LEFT JOIN LATERAL (
-      SELECT rate_per_brass FROM crushing_rates
+      SELECT selling_rate_per_brass FROM crushing_rates
       WHERE product_id = dp.product_id
       ORDER BY effective_from DESC LIMIT 1
     ) cr ON true

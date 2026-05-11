@@ -57,6 +57,17 @@ async function initProductTables() {
   `);
   console.log('Created daily_production table');
 
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS production_rate_snapshots (
+      id SERIAL PRIMARY KEY,
+      production_id INTEGER REFERENCES daily_production(id) ON DELETE CASCADE,
+      production_rate_per_brass DECIMAL(10, 2) NOT NULL,
+      total_value DECIMAL(10, 2) NOT NULL,
+      created_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')
+    );
+  `);
+  console.log('Created production_rate_snapshots table');
+
   const categoryCount = await db.query('SELECT COUNT(*) FROM product_categories');
   if (parseInt(categoryCount.rows[0].count) === 0) {
     await db.query(`
@@ -89,17 +100,8 @@ async function initProductTables() {
     console.log('Inserted default products');
   }
 
-  const rateCount = await db.query('SELECT COUNT(*) FROM crushing_rates');
-  if (parseInt(rateCount.rows[0].count) === 0) {
-    const products = await db.query('SELECT id FROM products');
-    for (const product of products.rows) {
-      const rate = 250 + (Math.random() * 100);
-      await db.query(`
-        INSERT INTO crushing_rates (product_id, rate_per_brass) VALUES ($1, $2)
-      `, [product.id, rate.toFixed(2)]);
-    }
-    console.log('Inserted default crushing rates');
-  }
+  // No default rates inserted — selling and production rates must be configured
+  // by the business through the app after go-live.
 
   console.log('Product tables initialized successfully!');
   process.exit(0);

@@ -60,19 +60,7 @@ async function initCustomerTables() {
   `);
   console.log('Created customer_wallets table');
 
-  const customerCount = await db.query('SELECT COUNT(*) FROM customers');
-  if (parseInt(customerCount.rows[0].count) === 0) {
-    await db.query(`
-      INSERT INTO customers (customer_code, name, customer_type, phone, city, state) VALUES
-        ('CUST-001', 'Ravi Kumar', 'individual', '9876543210', 'Tirupati', 'Andhra Pradesh'),
-        ('CUST-002', 'Sri Venkateswara Construction', 'company', '9876543211', 'Chennai', 'Tamil Nadu'),
-        ('CUST-003', 'National Highways Authority', 'government', '9876543212', 'New Delhi', 'Delhi'),
-        ('CUST-004', 'Anil Reddy', 'individual', '9876543213', 'Bangalore', 'Karnataka'),
-        ('CUST-005', 'AP Road Corporation', 'government', '9876543214', 'Vijayawada', 'Andhra Pradesh')
-      ON CONFLICT (customer_code) DO NOTHING;
-    `);
-    console.log('Inserted sample customers');
-  }
+  // No demo customers inserted — real customers will be added by the business after go-live.
 
   console.log('Customer tables initialized successfully!');
   process.exit(0);
