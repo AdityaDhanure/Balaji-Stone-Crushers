@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/providers/session_ui_state_provider.dart';
 import '../../../../core/utils/ist_date_utils.dart';
 import '../providers/blast_provider.dart';
 import '../widgets/blast_detail_header.dart';
@@ -39,7 +40,12 @@ class _BlastDetailScreenState extends ConsumerState<BlastDetailScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    final tabKey = 'blast-detail-${widget.blastId}';
+    final initialIndex = ref.read(sessionTabIndexProvider(tabKey)).clamp(0, 2).toInt();
+    _tabController = TabController(length: 3, vsync: this, initialIndex: initialIndex);
+    _tabController.addListener(() {
+      ref.read(sessionTabIndexProvider(tabKey).notifier).state = _tabController.index;
+    });
     Future.microtask(() => ref.read(blastProvider.notifier).loadBlastDetails(widget.blastId));
   }
 
@@ -295,12 +301,16 @@ class _BlastDetailScreenState extends ConsumerState<BlastDetailScreen>
   }
 
   Future<void> _onAddTrip(Map<String, dynamic> data) async {
-    await ref.read(blastProvider.notifier).addTrip(data);
+    final ok = await ref.read(blastProvider.notifier).addTrip(data);
+    if (!ok) return;
+    if (!_groupByVehicle) await _loadDateGroupedTrips();
     if (mounted) Navigator.pop(context);
   }
 
   Future<void> _onAddExpense(Map<String, dynamic> data) async {
-    await ref.read(blastProvider.notifier).addExpense(data);
+    final ok = await ref.read(blastProvider.notifier).addExpense(data);
+    if (!ok) return;
+    if (_groupExpensesByDate) await _loadDateGroupedExpenses();
     if (mounted) Navigator.pop(context);
   }
 }

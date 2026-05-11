@@ -23,10 +23,9 @@ class DieselRepository {
     }
   }
 
-  Future<Map<String, dynamic>> createPurchase(Map<String, dynamic> data) async {
+  Future<void> createPurchase(Map<String, dynamic> data) async {
     try {
-      final response = await _apiClient.dio.post(ApiConstants.dieselPurchases, data: data);
-      return response.data['data'] as Map<String, dynamic>;
+      await _apiClient.dio.post(ApiConstants.dieselPurchases, data: data);
     } on DioException catch (e) {
       throw Exception(e.response?.data['message'] ?? 'Failed to record purchase');
     }
@@ -57,10 +56,9 @@ class DieselRepository {
     }
   }
 
-  Future<Map<String, dynamic>> createConsumption(Map<String, dynamic> data) async {
+  Future<void> createConsumption(Map<String, dynamic> data) async {
     try {
-      final response = await _apiClient.dio.post(ApiConstants.dieselConsumption, data: data);
-      return response.data['data'] as Map<String, dynamic>;
+      await _apiClient.dio.post(ApiConstants.dieselConsumption, data: data);
     } on DioException catch (e) {
       throw Exception(e.response?.data['message'] ?? 'Failed to record consumption');
     }
@@ -74,10 +72,9 @@ class DieselRepository {
     }
   }
 
-  Future<Map<String, dynamic>> updateConsumption(int id, Map<String, dynamic> data) async {
+  Future<void> updateConsumption(int id, Map<String, dynamic> data) async {
     try {
-      final response = await _apiClient.dio.put('${ApiConstants.dieselConsumption}/$id', data: data);
-      return response.data['data'] as Map<String, dynamic>;
+      await _apiClient.dio.put('${ApiConstants.dieselConsumption}/$id', data: data);
     } on DioException catch (e) {
       throw Exception(e.response?.data['message'] ?? 'Failed to update consumption');
     }

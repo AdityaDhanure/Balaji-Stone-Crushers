@@ -1,8 +1,9 @@
 import db from '../../config/db.js';
+import { IST_DATE_SQL, IST_TIMESTAMP_SQL } from '../../utils/istDateTime.js';
 
 const dieselDate = (col) => `(${col})::date`;
-const istDate = "(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date";
-const istTimestamp = "CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'";
+const istDate = IST_DATE_SQL;
+const istTimestamp = IST_TIMESTAMP_SQL;
 
 export const dieselQueries = {
   // Get all diesel purchases

@@ -1,17 +1,19 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/providers/app_refresh_provider.dart';
 import '../../../../core/services/settings_service.dart';
 import '../widgets/widgets.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen>
+class _SettingsScreenState extends ConsumerState<SettingsScreen>
     with SingleTickerProviderStateMixin {
   final SettingsService _service = SettingsService();
   final _formKey = GlobalKey<FormState>();
@@ -317,6 +319,9 @@ class _SettingsScreenState extends State<SettingsScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Reload settings whenever the global refresh button is pressed
+    ref.listen<int>(appRefreshProvider, (_, __) => _loadSettings());
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Column(

@@ -210,53 +210,77 @@ export const walletQueries = {
   },
 
   // Create wallet transaction (credit = payment received, debit = amount owed)
+  // Transactional: INSERT transaction + UPDATE customer balance must be atomic.
   create: async (data) => {
-    const result = await db.query(`
-      INSERT INTO customer_wallets (
-        customer_id, transaction_type, amount, payment_mode,
-        reference_number, transaction_date, description, created_by
-      ) VALUES ($1, $2, $3, $4, $5, COALESCE($6::date, ${IST_DATE_SQL}), $7, $8)
-      RETURNING *
-    `, [
-      data.customer_id,
-      data.transaction_type,
-      data.amount,
-      data.payment_mode,
-      data.reference_number,
-      data.transaction_date || null,
-      data.description,
-      data.created_by
-    ]);
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
 
-    // Update customer's current_balance
-    await db.query(`
-      UPDATE customers SET current_balance = (
-        SELECT COALESCE(SUM(CASE WHEN transaction_type = 'credit' THEN amount ELSE -amount END), 0)
-        FROM customer_wallets WHERE customer_id = $1
-      )
-      WHERE id = $1
-    `, [data.customer_id]);
+      const result = await client.query(`
+        INSERT INTO customer_wallets (
+          customer_id, transaction_type, amount, payment_mode,
+          reference_number, transaction_date, description, created_by
+        ) VALUES ($1, $2, $3, $4, $5, COALESCE($6::date, ${IST_DATE_SQL}), $7, $8)
+        RETURNING *
+      `, [
+        data.customer_id,
+        data.transaction_type,
+        data.amount,
+        data.payment_mode,
+        data.reference_number,
+        data.transaction_date || null,
+        data.description,
+        data.created_by
+      ]);
 
-    return result.rows[0];
-  },
-
-  // Delete transaction and recalculate balance
-  delete: async (id) => {
-    const wallet = await db.query('SELECT customer_id FROM customer_wallets WHERE id = $1', [id]);
-    const customerId = wallet.rows[0]?.customer_id;
-    
-    await db.query('DELETE FROM customer_wallets WHERE id = $1', [id]);
-    
-    if (customerId) {
-      await db.query(`
+      // Recalculate and update customer's current_balance
+      await client.query(`
         UPDATE customers SET current_balance = (
           SELECT COALESCE(SUM(CASE WHEN transaction_type = 'credit' THEN amount ELSE -amount END), 0)
           FROM customer_wallets WHERE customer_id = $1
         )
         WHERE id = $1
-      `, [customerId]);
+      `, [data.customer_id]);
+
+      await client.query('COMMIT');
+      return result.rows[0];
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
-    
-    return { deleted: true };
+  },
+
+  // Delete transaction and recalculate balance
+  // Transactional: DELETE + recalculate balance must be atomic.
+  delete: async (id) => {
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      const wallet = await client.query('SELECT customer_id FROM customer_wallets WHERE id = $1', [id]);
+      const customerId = wallet.rows[0]?.customer_id;
+
+      await client.query('DELETE FROM customer_wallets WHERE id = $1', [id]);
+
+      if (customerId) {
+        await client.query(`
+          UPDATE customers SET current_balance = (
+            SELECT COALESCE(SUM(CASE WHEN transaction_type = 'credit' THEN amount ELSE -amount END), 0)
+            FROM customer_wallets WHERE customer_id = $1
+          )
+          WHERE id = $1
+        `, [customerId]);
+      }
+
+      await client.query('COMMIT');
+      return { deleted: true };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 };

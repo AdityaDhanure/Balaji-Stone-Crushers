@@ -20,6 +20,12 @@ double _toDouble(dynamic v) {
   return double.tryParse(v.toString()) ?? 0;
 }
 
+int _compareAttendanceByEmployee(AttendanceRecord a, AttendanceRecord b) {
+  final byName = a.employeeName.toLowerCase().compareTo(b.employeeName.toLowerCase());
+  if (byName != 0) return byName;
+  return a.id.compareTo(b.id);
+}
+
 class AttendanceState {
   final bool isLoading;
   final List<AttendanceRecord> records;
@@ -241,7 +247,8 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
       final records = (data as List)
         .whereType<Map<String, dynamic>>()
         .map(AttendanceRecord.fromJson)
-        .toList();
+        .toList()
+        ..sort(_compareAttendanceByEmployee);
       state = state.copyWith(isLoading: false, records: records);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
@@ -313,7 +320,8 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
       final records = (data as List)
         .whereType<Map<String, dynamic>>()
         .map(AttendanceRecord.fromJson)
-        .toList();
+        .toList()
+        ..sort(_compareAttendanceByEmployee);
       
       final summaryData = await _repository.getDailySummary(targetDate);
       final summary = DailySummary.fromJson(summaryData);
@@ -388,7 +396,8 @@ class AttendanceNotifier extends StateNotifier<AttendanceState> {
       final records = (results[0] as List)
         .whereType<Map<String, dynamic>>()
         .map(AttendanceRecord.fromJson)
-        .toList();
+        .toList()
+        ..sort(_compareAttendanceByEmployee);
 
       final summary = results[1] != null
       ? DailySummary.fromJson(results[1])

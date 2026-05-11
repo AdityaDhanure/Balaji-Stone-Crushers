@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:balaji_crushers_app/core/constants/app_colors.dart';
 import 'package:balaji_crushers_app/core/providers/app_refresh_provider.dart';
+import 'package:balaji_crushers_app/core/providers/session_ui_state_provider.dart';
 import 'package:balaji_crushers_app/features/salary/data/models/salary_models.dart';
 import 'package:balaji_crushers_app/features/salary/data/repositories/salary_repository.dart';
 import 'package:balaji_crushers_app/features/salary/presentation/providers/salary_provider.dart';
@@ -34,11 +35,20 @@ class _SalaryListScreenState extends ConsumerState<SalaryListScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
-    _componentsTabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() { if (mounted) setState(() {}); });
-    _componentsTabController.addListener(() { if (mounted) setState(() {}); });
+    final initialIndex = ref.read(sessionTabIndexProvider('salary')).clamp(0, 3).toInt();
+    final initialComponentsIndex = ref.read(sessionTabIndexProvider('salary-components')).clamp(0, 1).toInt();
+    _tabController = TabController(length: 4, vsync: this, initialIndex: initialIndex);
+    _componentsTabController = TabController(length: 2, vsync: this, initialIndex: initialComponentsIndex);
+    _tabController.addListener(() {
+      ref.read(sessionTabIndexProvider('salary').notifier).state = _tabController.index;
+      if (mounted) setState(() {});
+    });
+    _componentsTabController.addListener(() {
+      ref.read(sessionTabIndexProvider('salary-components').notifier).state = _componentsTabController.index;
+      if (mounted) setState(() {});
+    });
     _loadSupportData();
+    _restoreSelectedPeriod();
   }
 
   @override
@@ -69,10 +79,26 @@ class _SalaryListScreenState extends ConsumerState<SalaryListScreen>
     }
   }
 
+  Future<void> _restoreSelectedPeriod() async {
+    final selectedId = ref.read(sessionSelectedIdProvider('salary-period'));
+    if (selectedId == null) return;
+
+    try {
+      final periods = await ref.read(periodsProvider.future);
+      final matches = periods.where((period) => period.id == selectedId);
+      if (!mounted || matches.isEmpty) return;
+
+      _onPeriodChanged(matches.first);
+    } catch (_) {
+      // Keep the default screen if periods cannot be loaded yet.
+    }
+  }
+
   void _onPeriodChanged(SalaryPeriod? period) {
     setState(() {
       _selectedPeriod = period;
     });
+    ref.read(sessionSelectedIdProvider('salary-period').notifier).state = period?.id;
 
     ref.read(salaryNotifierProvider.notifier).loadSlips(
       periodId: period?.id,
@@ -104,7 +130,20 @@ class _SalaryListScreenState extends ConsumerState<SalaryListScreen>
 
   @override
   Widget build(BuildContext context) {
-    final refreshTrigger = ref.watch(appRefreshProvider);
+    // Reload all salary data when the global refresh button is pressed
+    ref.listen<int>(appRefreshProvider, (_, __) {
+      _loadSupportData();
+      ref.read(salaryNotifierProvider.notifier).loadSlips(
+        periodId: _selectedPeriod?.id,
+        employeeId: _selectedEmployee?.id,
+        departmentId: _selectedDepartment?.id,
+        status: _selectedStatus == 'all' ? null : _selectedStatus,
+      );
+      ref.read(advanceNotifierProvider.notifier).loadAdvances();
+      ref.read(deductionNotifierProvider.notifier).loadDeductions();
+      ref.read(earningNotifierProvider.notifier).loadEarnings();
+      ref.invalidate(periodsProvider);
+    });
 
     return Scaffold(
       backgroundColor: AppColors.background,

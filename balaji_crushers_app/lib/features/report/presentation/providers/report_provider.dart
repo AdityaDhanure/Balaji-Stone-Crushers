@@ -3,6 +3,17 @@ import 'package:balaji_crushers_app/features/report/data/repositories/report_rep
 
 final reportRepositoryProvider = Provider((_) => ReportRepository());
 
+String _reportDateValue(dynamic item) {
+  if (item is! Map) return '';
+  for (final key in ['invoice_date', 'expense_date', 'date', 'created_at']) {
+    final value = item[key];
+    if (value != null && value.toString().isNotEmpty) {
+      return value.toString();
+    }
+  }
+  return '';
+}
+
 // ─── Shared param types ────────────────────────────────────────────────────────
 
 typedef DateRangeParams = ({DateTime startDate, DateTime endDate});
@@ -21,10 +32,11 @@ final overviewSummaryProvider =
 final salesReportProvider =
     FutureProvider.family<List<dynamic>, DateRangeParams>((ref, p) async {
   final repo = ref.watch(reportRepositoryProvider);
-  return repo.getSalesReport(
+  return (await repo.getSalesReport(
     startDate: p.startDate,
     endDate: p.endDate,
-  );
+  ))
+    ..sort((a, b) => _reportDateValue(b).compareTo(_reportDateValue(a)));
 });
 
 final expenseSummaryReportProvider =

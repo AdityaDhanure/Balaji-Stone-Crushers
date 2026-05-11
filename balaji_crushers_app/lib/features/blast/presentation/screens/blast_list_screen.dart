@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/providers/app_refresh_provider.dart';
 import '../providers/blast_provider.dart';
 import '../widgets/active_blast_card.dart';
 
@@ -17,7 +16,6 @@ class BlastListScreen extends ConsumerStatefulWidget {
 }
 
 class _BlastListScreenState extends ConsumerState<BlastListScreen> {
-  int _lastRefresh = 0;
 
   @override
   void initState() {
@@ -30,17 +28,8 @@ class _BlastListScreenState extends ConsumerState<BlastListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final refresh = ref.watch(appRefreshProvider);
     final state = ref.watch(blastProvider);
     final isSmall = MediaQuery.of(context).size.width < 800;
-
-    if (refresh != _lastRefresh) {
-      _lastRefresh = refresh;
-      Future.microtask(() {
-        ref.read(blastProvider.notifier).loadBlasts();
-        ref.read(blastProvider.notifier).loadActiveBlast();
-      });
-    }
 
     return Scaffold(
       backgroundColor: AppColors.background,

@@ -6,6 +6,18 @@ final customerRepositoryProvider = Provider<CustomerRepository>((ref) {
   return CustomerRepository();
 });
 
+int _compareCustomersByName(Customer a, Customer b) {
+  final byName = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  if (byName != 0) return byName;
+  return a.id.compareTo(b.id);
+}
+
+int _compareWalletTransactionsNewestFirst(WalletTransaction a, WalletTransaction b) {
+  final byDate = b.transactionDate.compareTo(a.transactionDate);
+  if (byDate != 0) return byDate;
+  return b.id.compareTo(a.id);
+}
+
 class CustomerState {
   final bool isLoading;
   final List<Customer> customers;
@@ -189,9 +201,10 @@ class CustomerWallet {
   });
 
   factory CustomerWallet.fromJson(Map<String, dynamic> json) {
-    final txList = (json['transactions'] as List<dynamic>?)
+    final txList = ((json['transactions'] as List<dynamic>?)
         ?.map((t) => WalletTransaction.fromJson(t as Map<String, dynamic>))
-        .toList() ?? [];
+        .toList() ?? [])
+      ..sort(_compareWalletTransactionsNewestFirst);
     return CustomerWallet(
       transactions: txList,
       balance: (json['balance'] as num?)?.toDouble() ?? 0,
@@ -210,7 +223,8 @@ class CustomerNotifier extends StateNotifier<CustomerState> {
 
       final customers = data
           .map((c) => Customer.fromJson(c as Map<String, dynamic>))
-          .toList();
+          .toList()
+        ..sort(_compareCustomersByName);
 
       state = state.copyWith(customers: customers);
       } catch (e) {
@@ -223,7 +237,8 @@ class CustomerNotifier extends StateNotifier<CustomerState> {
   Future<void> loadActiveCustomers() async {
     try {
       final data = await _repository.getActiveCustomers();
-      final customers = data.map((c) => Customer.fromJson(c as Map<String, dynamic>)).toList();
+      final customers = data.map((c) => Customer.fromJson(c as Map<String, dynamic>)).toList()
+        ..sort(_compareCustomersByName);
       state = state.copyWith(customers: customers);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
@@ -234,7 +249,7 @@ class CustomerNotifier extends StateNotifier<CustomerState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       await _repository.createCustomer(data);
-      await loadAllData();
+      loadAllData(); // reload in background
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
@@ -246,7 +261,7 @@ class CustomerNotifier extends StateNotifier<CustomerState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       await _repository.updateCustomer(id, data);
-      await loadAllData();
+      loadAllData(); // reload in background
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
@@ -257,7 +272,7 @@ class CustomerNotifier extends StateNotifier<CustomerState> {
   Future<bool> deleteCustomer(int id) async {
     try {
       await _repository.deleteCustomer(id);
-      await loadAllData();
+      loadAllData(); // reload in background
       return true;
     } catch (e) {
       state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
@@ -280,7 +295,8 @@ class CustomerNotifier extends StateNotifier<CustomerState> {
     }
     try {
       final data = await _repository.searchCustomers(query);
-      final customers = data.map((c) => Customer.fromJson(c as Map<String, dynamic>)).toList();
+      final customers = data.map((c) => Customer.fromJson(c as Map<String, dynamic>)).toList()
+        ..sort(_compareCustomersByName);
       state = state.copyWith(searchResults: customers);
     } catch (e) {
       state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
@@ -300,6 +316,11 @@ class CustomerNotifier extends StateNotifier<CustomerState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       await _repository.addWalletTransaction(data);
+      await loadCustomers();
+      final customerId = int.tryParse(data['customer_id']?.toString() ?? '');
+      if (customerId != null) {
+        await loadWallet(customerId);
+      }
       state = state.copyWith(isLoading: false);
       return true;
     } catch (e) {
@@ -309,7 +330,6 @@ class CustomerNotifier extends StateNotifier<CustomerState> {
   }
 
   Future<void> loadAllData() async {
-    print("LOAD ALL DATA...............11111111111111");
     state = state.copyWith(isLoading: true, error: null);
 
     try {

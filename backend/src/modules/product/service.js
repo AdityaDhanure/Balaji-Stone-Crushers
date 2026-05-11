@@ -99,9 +99,9 @@ export const rateService = {
     if (!data.product_id) {
       throw new Error('Product ID is required');
     }
-  if (!data.rate_per_brass || data.rate_per_brass <= 0) {
-    throw new Error('Valid rate per brass is required');
-  }
+    if (!data.selling_rate_per_brass || data.selling_rate_per_brass <= 0) {
+      throw new Error('Valid selling rate per brass is required');
+    }
     const result = await rateQueries.create(data);
     await invalidateProductCache();
     return result;

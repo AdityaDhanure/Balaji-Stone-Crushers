@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/providers/app_refresh_provider.dart';
+import '../../../../core/providers/session_ui_state_provider.dart';
 import '../providers/customer_provider.dart';
 import '../../../billing/presentation/providers/billing_provider.dart';
 import '../../../billing/presentation/widgets/create_invoice_sheet.dart';
@@ -24,13 +24,16 @@ class CustomerListScreen extends ConsumerStatefulWidget {
 class _CustomerListScreenState extends ConsumerState<CustomerListScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
-  int _lastRefreshTrigger = 0;
   bool _showActiveOnly = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    final initialIndex = ref.read(sessionTabIndexProvider('customers')).clamp(0, 1).toInt();
+    _tabController = TabController(length: 2, vsync: this, initialIndex: initialIndex);
+    _tabController.addListener(() {
+      ref.read(sessionTabIndexProvider('customers').notifier).state = _tabController.index;
+    });
     Future.microtask(() {
       ref.read(customerProvider.notifier).loadAllData();
       ref.read(billingProvider.notifier).loadAllData();
@@ -45,14 +48,8 @@ class _CustomerListScreenState extends ConsumerState<CustomerListScreen>
 
   @override
   Widget build(BuildContext context) {
-    final refreshTrigger = ref.watch(appRefreshProvider);
     final state = ref.watch(customerProvider);
     final isSmall = MediaQuery.of(context).size.width < 800;
-
-    if (refreshTrigger != _lastRefreshTrigger) {
-      _lastRefreshTrigger = refreshTrigger;
-      Future.microtask(() => ref.read(customerProvider.notifier).loadAllData());
-    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -140,10 +137,13 @@ class _CustomerListScreenState extends ConsumerState<CustomerListScreen>
 
   void _showAdd() {
     AddCustomerSheet.show(context, onSave: (data) async {
-      await ref.read(customerProvider.notifier).createCustomer(data);
+      final nav = Navigator.of(context);
+      final success = await ref.read(customerProvider.notifier).createCustomer(data);
       if (!mounted) return;
-      Navigator.pop(context);
-      _showSnackbar('Customer added successfully', AppColors.success);
+      if (success) {
+        nav.pop();
+        _showSnackbar('Customer added successfully', AppColors.success);
+      }
     });
   }
 
@@ -159,10 +159,11 @@ class _CustomerListScreenState extends ConsumerState<CustomerListScreen>
 
   void _showEdit(Customer customer) {
     EditCustomerSheet.show(context, customer: customer, onSave: (data) async {
+      final nav = Navigator.of(context);
       final success = await ref.read(customerProvider.notifier).updateCustomer(customer.id, data);
       if (!mounted) return;
       if (success) {
-        Navigator.pop(context);
+        nav.pop();
         _showSnackbar('Customer updated', AppColors.success);
       }
     });
@@ -199,7 +200,7 @@ class _CustomerListScreenState extends ConsumerState<CustomerListScreen>
           if (!mounted) return;
           if (success) {
             nav.pop();
-            ref.read(billingProvider.notifier).loadAllData();
+            await ref.read(customerProvider.notifier).loadAllData();
             _showSnackbar('Invoice created successfully', AppColors.success);
           }
         },

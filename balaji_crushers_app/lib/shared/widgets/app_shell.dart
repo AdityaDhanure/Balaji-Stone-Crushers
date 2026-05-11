@@ -31,6 +31,14 @@ class AppShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentRoute = GoRouterState.of(context).matchedLocation;
 
+    ref.listen<AsyncValue<int>>(apiMutationProvider, (previous, next) {
+      final previousValue = previous?.valueOrNull;
+      final nextValue = next.valueOrNull;
+      if (nextValue != null && nextValue != previousValue) {
+        ref.read(appRefreshProvider.notifier).refresh();
+      }
+    });
+
     // ── Track previous route ─────────────────────────────────────────────────
     // Skip /profile and /settings — these are "secondary" screens.
     if (currentRoute != '/profile' && currentRoute != '/settings') {

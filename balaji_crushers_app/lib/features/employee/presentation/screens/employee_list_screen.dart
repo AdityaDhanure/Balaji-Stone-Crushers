@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/providers/app_refresh_provider.dart';
+import '../../../../core/providers/session_ui_state_provider.dart';
 import '../providers/employee_provider.dart';
 import '../widgets/employee_stats_card.dart';
 import '../widgets/employees_tab.dart';
@@ -27,7 +28,11 @@ class _EmployeeListScreenState extends ConsumerState<EmployeeListScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    final initialIndex = ref.read(sessionTabIndexProvider('employees')).clamp(0, 2).toInt();
+    _tabController = TabController(length: 3, vsync: this, initialIndex: initialIndex);
+    _tabController.addListener(() {
+      ref.read(sessionTabIndexProvider('employees').notifier).state = _tabController.index;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(employeeProvider.notifier).loadAllData();
     });

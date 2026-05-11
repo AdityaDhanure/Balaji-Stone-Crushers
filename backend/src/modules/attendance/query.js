@@ -3,6 +3,9 @@ import db from '../../config/db.js';
 const attendanceDate = (col) => `(${col})::date`;
 const istTimestamp = "CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'";
 
+// Annual paid leave entitlement — update here if the business rule changes
+const ANNUAL_LEAVE_DAYS = 15;
+
 export const attendanceQueries = {
   // Get all attendance records with optional filters
   getAll: async (filters = {}) => {
@@ -93,181 +96,211 @@ export const attendanceQueries = {
   },
 
   // Create new attendance record (upsert - insert or update on conflict)
+  // Wrapped in a transaction: attendance upsert + leave balance update + leave record insert must be atomic.
   create: async (data) => {
-    // Check existing record to track leave balance changes
-    const existing = await db.query(
-      `SELECT status FROM attendance WHERE employee_id = $1 AND ${attendanceDate('date')} = $2::date`,
-      [data.employee_id, data.date]
-    );
-    const oldStatus = existing.rows.length > 0 ? existing.rows[0].status : null;
-    
-    // Insert with ON CONFLICT to handle duplicate entries
-    const result = await db.query(`
-      INSERT INTO attendance (
-        employee_id, date, check_in, check_out, status,
-        overtime_hours, late_hours, notes, created_by, created_at, updated_at
-      ) VALUES ($1, $2::date, $3, $4, $5, $6, $7, $8, $9, ${istTimestamp}, ${istTimestamp})
-      ON CONFLICT (employee_id, date) DO UPDATE SET
-        check_in = COALESCE(EXCLUDED.check_in, attendance.check_in),
-        check_out = COALESCE(EXCLUDED.check_out, attendance.check_out),
-        status = COALESCE(EXCLUDED.status, attendance.status),
-        overtime_hours = COALESCE(EXCLUDED.overtime_hours, attendance.overtime_hours),
-        late_hours = COALESCE(EXCLUDED.late_hours, attendance.late_hours),
-        notes = COALESCE(EXCLUDED.notes, attendance.notes),
-        updated_at = ${istTimestamp}
-      RETURNING *
-    `, [
-      data.employee_id,
-      data.date,
-      data.check_in,
-      data.check_out,
-      data.status || 'present',
-      data.overtime_hours || 0,
-      data.late_hours || 0,
-      data.notes,
-      data.created_by
-    ]);
-    
-    const newStatus = data.status || 'present';
-    
-    // Adjust paid leave balance when status changes to/from leave
-    if (oldStatus === 'leave' && newStatus !== 'leave') {
-      await db.query(`
-        UPDATE employees 
-        SET paid_leave_balance = paid_leave_balance + 1
-        WHERE id = $1
-      `, [data.employee_id]);
-    } else if (oldStatus !== 'leave' && newStatus === 'leave') {
-      await db.query(`
-        UPDATE employees 
-        SET paid_leave_balance = GREATEST(paid_leave_balance - 1, 0)
-        WHERE id = $1
-      `, [data.employee_id]);
-      
-      await db.query(`
-        INSERT INTO employee_leaves (employee_id, leave_type, start_date, end_date, total_days, reason, status)
-        VALUES ($1, 'Paid Leave', $2::date, $2::date, 1, $3, 'approved')
-      `, [data.employee_id, data.date, data.notes || 'Marked from attendance']);
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Check existing record to track leave balance changes
+      const existing = await client.query(
+        `SELECT status FROM attendance WHERE employee_id = $1 AND ${attendanceDate('date')} = $2::date`,
+        [data.employee_id, data.date]
+      );
+      const oldStatus = existing.rows.length > 0 ? existing.rows[0].status : null;
+
+      // Insert with ON CONFLICT to handle duplicate entries
+      const result = await client.query(`
+        INSERT INTO attendance (
+          employee_id, date, check_in, check_out, status,
+          overtime_hours, late_hours, notes, created_by, created_at, updated_at
+        ) VALUES ($1, $2::date, $3, $4, $5, $6, $7, $8, $9, ${istTimestamp}, ${istTimestamp})
+        ON CONFLICT (employee_id, date) DO UPDATE SET
+          check_in = COALESCE(EXCLUDED.check_in, attendance.check_in),
+          check_out = COALESCE(EXCLUDED.check_out, attendance.check_out),
+          status = COALESCE(EXCLUDED.status, attendance.status),
+          overtime_hours = COALESCE(EXCLUDED.overtime_hours, attendance.overtime_hours),
+          late_hours = COALESCE(EXCLUDED.late_hours, attendance.late_hours),
+          notes = COALESCE(EXCLUDED.notes, attendance.notes),
+          updated_at = ${istTimestamp}
+        RETURNING *
+      `, [
+        data.employee_id,
+        data.date,
+        data.check_in,
+        data.check_out,
+        data.status || 'present',
+        data.overtime_hours || 0,
+        data.late_hours || 0,
+        data.notes,
+        data.created_by
+      ]);
+
+      const newStatus = data.status || 'present';
+
+      // Adjust paid leave balance when status changes to/from leave
+      if (oldStatus === 'leave' && newStatus !== 'leave') {
+        await client.query(`
+          UPDATE employees 
+          SET paid_leave_balance = paid_leave_balance + 1
+          WHERE id = $1
+        `, [data.employee_id]);
+      } else if (oldStatus !== 'leave' && newStatus === 'leave') {
+        await client.query(`
+          UPDATE employees 
+          SET paid_leave_balance = GREATEST(paid_leave_balance - 1, 0)
+          WHERE id = $1
+        `, [data.employee_id]);
+
+        await client.query(`
+          INSERT INTO employee_leaves (employee_id, leave_type, start_date, end_date, total_days, reason, status)
+          VALUES ($1, 'Paid Leave', $2::date, $2::date, 1, $3, 'approved')
+        `, [data.employee_id, data.date, data.notes || 'Marked from attendance']);
+      }
+
+      await client.query('COMMIT');
+      return result.rows[0];
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
-    
-    return result.rows[0];
   },
 
-  // Bulk create multiple attendance records
+  // Bulk create multiple attendance records — each record is individually transactional
   bulkCreate: async (records) => {
-    console.log(`bulkCreate: Processing ${records.length} records`);
     const results = [];
-    for (let i = 0; i < records.length; i++) {
-      const record = records[i];
-      console.log(`  Creating record ${i + 1}/${records.length}: employee_id=${record.employee_id}, date=${record.date}, status=${record.status}`);
-      try {
-        const result = await attendanceQueries.create(record);
-        results.push(result);
-      } catch (err) {
-        console.error(`  Error creating record ${i + 1}:`, err.message);
-        throw err;
-      }
+    for (const record of records) {
+      const result = await attendanceQueries.create(record);
+      results.push(result);
     }
-    console.log(`bulkCreate: Complete, ${results.length} records saved`);
     return results;
   },
 
   // Update existing attendance record
+  // Wrapped in a transaction: status update + optional leave balance change must be atomic.
   update: async (id, data) => {
-    console.log('Update attendance - id:', id, 'data:', JSON.stringify(data));
-    const current = await db.query('SELECT employee_id, status, date FROM attendance WHERE id = $1', [id]);
-    if (current.rows.length === 0) return null;
-    
-    const oldStatus = current.rows[0].status;
-    const employeeId = current.rows[0].employee_id;
-    const attendanceDateValue = data.date || current.rows[0].date;
-    
-    const updates = [];
-    const params = [];
-    let paramIndex = 1;
-    
-    if (data.status != null && data.status !== '') {
-      updates.push(`status = $${paramIndex++}`);
-      params.push(data.status);
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      const current = await client.query('SELECT employee_id, status, date FROM attendance WHERE id = $1', [id]);
+      if (current.rows.length === 0) {
+        await client.query('COMMIT');
+        return null;
+      }
+
+      const oldStatus = current.rows[0].status;
+      const employeeId = current.rows[0].employee_id;
+      const attendanceDateValue = data.date || current.rows[0].date;
+
+      const updates = [];
+      const params = [];
+      let paramIndex = 1;
+
+      if (data.status != null && data.status !== '') {
+        updates.push(`status = $${paramIndex++}`);
+        params.push(data.status);
+      }
+      if (data.check_in != null) {
+        updates.push(`check_in = $${paramIndex++}`);
+        params.push(data.check_in);
+      }
+      if (data.check_out != null) {
+        updates.push(`check_out = $${paramIndex++}`);
+        params.push(data.check_out);
+      }
+      if (data.overtime_hours != null) {
+        updates.push(`overtime_hours = $${paramIndex++}`);
+        params.push(data.overtime_hours);
+      }
+      if (data.late_hours != null) {
+        updates.push(`late_hours = $${paramIndex++}`);
+        params.push(data.late_hours);
+      }
+      if (data.notes != null) {
+        updates.push(`notes = $${paramIndex++}`);
+        params.push(data.notes);
+      }
+
+      let updatedRow;
+      if (updates.length === 0) {
+        updatedRow = current.rows[0];
+      } else {
+        updates.push(`updated_at = ${istTimestamp}`);
+        const result = await client.query(`
+          UPDATE attendance SET
+            ${updates.join(', ')}
+          WHERE id = $${paramIndex}
+          RETURNING *
+        `, [...params, id]);
+        updatedRow = result.rows[0];
+      }
+
+      const newStatus = data.status || oldStatus;
+
+      // Adjust leave balance on status change
+      if (oldStatus === 'leave' && newStatus !== 'leave') {
+        await client.query(`
+          UPDATE employees 
+          SET paid_leave_balance = paid_leave_balance + 1
+          WHERE id = $1
+        `, [employeeId]);
+      } else if (oldStatus !== 'leave' && newStatus === 'leave') {
+        await client.query(`
+          UPDATE employees 
+          SET paid_leave_balance = GREATEST(paid_leave_balance - 1, 0)
+          WHERE id = $1
+        `, [employeeId]);
+
+        await client.query(`
+          INSERT INTO employee_leaves (employee_id, leave_type, start_date, end_date, total_days, reason, status)
+          VALUES ($1, 'Paid Leave', $2::date, $2::date, 1, $3, 'approved')
+        `, [employeeId, attendanceDateValue, data.notes || 'Marked from attendance']);
+      }
+
+      await client.query('COMMIT');
+      return updatedRow;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
-    if (data.check_in != null) {
-      updates.push(`check_in = $${paramIndex++}`);
-      params.push(data.check_in);
-    }
-    if (data.check_out != null) {
-      updates.push(`check_out = $${paramIndex++}`);
-      params.push(data.check_out);
-    }
-    if (data.overtime_hours != null) {
-      updates.push(`overtime_hours = $${paramIndex++}`);
-      params.push(data.overtime_hours);
-    }
-    if (data.late_hours != null) {
-      updates.push(`late_hours = $${paramIndex++}`);
-      params.push(data.late_hours);
-    }
-    if (data.notes != null) {
-      updates.push(`notes = $${paramIndex++}`);
-      params.push(data.notes);
-    }
-    
-    if (updates.length === 0) {
-      return current.rows[0];
-    }
-    
-    updates.push(`updated_at = ${istTimestamp}`);
-    
-    const result = await db.query(`
-      UPDATE attendance SET
-        ${updates.join(', ')}
-      WHERE id = $${paramIndex}
-      RETURNING *
-    `, [...params, id]);
-    
-    const newStatus = data.status || oldStatus;
-    
-    // Adjust leave balance on status change
-    if (oldStatus === 'leave' && newStatus !== 'leave') {
-      await db.query(`
-        UPDATE employees 
-        SET paid_leave_balance = paid_leave_balance + 1
-        WHERE id = $1
-      `, [employeeId]);
-    } else if (oldStatus !== 'leave' && newStatus === 'leave') {
-      await db.query(`
-        UPDATE employees 
-        SET paid_leave_balance = GREATEST(paid_leave_balance - 1, 0)
-        WHERE id = $1
-      `, [employeeId]);
-      
-      await db.query(`
-        INSERT INTO employee_leaves (employee_id, leave_type, start_date, end_date, total_days, reason, status)
-        VALUES ($1, 'Paid Leave', $2::date, $2::date, 1, $3, 'approved')
-      `, [employeeId, attendanceDateValue, data.notes || 'Marked from attendance']);
-    }
-    
-    return result.rows[0];
   },
 
   // Delete attendance record and restore leave balance if was on leave
+  // Wrapped in a transaction: delete + leave balance restore + remove leave record must be atomic.
   delete: async (id) => {
-    const current = await db.query('SELECT employee_id, status, date FROM attendance WHERE id = $1', [id]);
-    if (current.rows.length > 0) {
-      if (current.rows[0].status === 'leave') {
-        await db.query(`
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      const current = await client.query('SELECT employee_id, status, date FROM attendance WHERE id = $1', [id]);
+      if (current.rows.length > 0 && current.rows[0].status === 'leave') {
+        await client.query(`
           UPDATE employees 
           SET paid_leave_balance = paid_leave_balance + 1
           WHERE id = $1
         `, [current.rows[0].employee_id]);
-        
-        await db.query(`
+
+        await client.query(`
           DELETE FROM employee_leaves 
           WHERE employee_id = $1 AND ${attendanceDate('start_date')} = $2::date AND status = 'approved'
         `, [current.rows[0].employee_id, current.rows[0].date]);
       }
+
+      await client.query('DELETE FROM attendance WHERE id = $1', [id]);
+
+      await client.query('COMMIT');
+      return { deleted: true };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
-    await db.query('DELETE FROM attendance WHERE id = $1', [id]);
-    return { deleted: true };
   },
 
   // Get daily attendance summary (counts by status)
@@ -336,32 +369,21 @@ export const shiftQueries = {
 // Leave balance queries
 export const leaveQueries = {
   getPaidLeaveBalance: async (employeeId) => {
-    console.log('Query: Getting leave balance for employeeId:', employeeId);
-    
     const empResult = await db.query(`
       SELECT paid_leave_balance FROM employees WHERE id = $1
     `, [employeeId]);
-    
+
     if (empResult.rows.length === 0) {
-      return { total_leaves: 15, leaves_taken: 0, leaves_remaining: 15 };
+      return { total_leaves: ANNUAL_LEAVE_DAYS, leaves_taken: 0, leaves_remaining: ANNUAL_LEAVE_DAYS };
     }
-    
-    let paidLeaveBalance = empResult.rows[0].paid_leave_balance;
-    if (paidLeaveBalance === null || paidLeaveBalance === undefined) {
-      paidLeaveBalance = 15;
-    }
-    
-    const totalLeaves = 15;
-    const leavesTaken = totalLeaves - paidLeaveBalance;
-    const leavesRemaining = paidLeaveBalance;
-    
-    console.log('Employee paid_leave_balance:', paidLeaveBalance);
-    console.log('Leaves remaining:', leavesRemaining);
-    
+
+    const paidLeaveBalance = empResult.rows[0].paid_leave_balance ?? ANNUAL_LEAVE_DAYS;
+    const leavesTaken = ANNUAL_LEAVE_DAYS - paidLeaveBalance;
+
     return {
-      total_leaves: totalLeaves,
+      total_leaves: ANNUAL_LEAVE_DAYS,
       leaves_taken: leavesTaken,
-      leaves_remaining: leavesRemaining
+      leaves_remaining: paidLeaveBalance
     };
   }
 };

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/providers/app_refresh_provider.dart';
+import '../../../../core/providers/session_ui_state_provider.dart';
 import '../providers/attendance_provider.dart';
 import '../../utils/attendance_date_utils.dart';
 import '../../../employee/presentation/providers/employee_provider.dart';
@@ -30,8 +31,12 @@ class _AttendanceListScreenState extends ConsumerState<AttendanceListScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() { if (mounted) setState(() {}); });
+    final initialIndex = ref.read(sessionTabIndexProvider('attendance')).clamp(0, 1).toInt();
+    _tabController = TabController(length: 2, vsync: this, initialIndex: initialIndex);
+    _tabController.addListener(() {
+      ref.read(sessionTabIndexProvider('attendance').notifier).state = _tabController.index;
+      if (mounted) setState(() {});
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
     });

@@ -119,7 +119,10 @@ export const salaryQueries = {
     return result.rows[0];
   },
 
-  // Auto-adds extra_days column to salary_slips if it doesn't already exist
+  // WARNING: This is a schema migration embedded in a query file.
+  // It should only be called from an init/migration script, NOT on every API request.
+  // Safe to run repeatedly (IF NOT EXISTS guard) but wasteful in production.
+  // TODO: Remove this call from any service/controller that invokes it at runtime.
   ensureExtraDaysColumn: async () => {
     await db.query(`
       ALTER TABLE salary_slips
@@ -372,6 +375,10 @@ export const salaryQueries = {
 
   // ── Salary Earnings ──────────────────────────────────────────────────────
 
+  // WARNING: This creates a table and seeds default data at query-call time.
+  // It should only be called from an init/migration script, NOT on every API request.
+  // Safe to run repeatedly (IF NOT EXISTS + COUNT guard) but wasteful in production.
+  // TODO: Move this logic to a dedicated init-salary-tables.js script.
   initializeEarningsTable: async () => {
     await db.query(`
       CREATE TABLE IF NOT EXISTS salary_earnings (

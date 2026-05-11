@@ -6,6 +6,24 @@ final productRepositoryProvider = Provider<ProductRepository>((ref) {
   return ProductRepository();
 });
 
+int _compareProductsByName(Product a, Product b) {
+  final byName = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  if (byName != 0) return byName;
+  return a.id.compareTo(b.id);
+}
+
+int _compareCategoriesByName(ProductCategory a, ProductCategory b) {
+  final byName = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  if (byName != 0) return byName;
+  return a.id.compareTo(b.id);
+}
+
+int _compareProductionNewestFirst(ProductionEntry a, ProductionEntry b) {
+  final byDate = b.productionDate.compareTo(a.productionDate);
+  if (byDate != 0) return byDate;
+  return b.id.compareTo(a.id);
+}
+
 class ProductState {
   final bool isLoading;
   final List<Product> products;
@@ -218,8 +236,9 @@ class ProductNotifier extends StateNotifier<ProductState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final data = await _repository.getProducts();
-      final products = data.map((p) => Product.fromJson(p as Map<String, dynamic>)).toList();
-      state = state.copyWith(products: products);
+      final products = data.map((p) => Product.fromJson(p as Map<String, dynamic>)).toList()
+        ..sort(_compareProductsByName);
+      state = state.copyWith(isLoading: false, products: products);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
     }
@@ -228,7 +247,8 @@ class ProductNotifier extends StateNotifier<ProductState> {
   Future<void> loadCategories() async {
     try {
       final data = await _repository.getCategories();
-      final categories = data.map((c) => ProductCategory.fromJson(c as Map<String, dynamic>)).toList();
+      final categories = data.map((c) => ProductCategory.fromJson(c as Map<String, dynamic>)).toList()
+        ..sort(_compareCategoriesByName);
       state = state.copyWith(categories: categories);
     } catch (e) {
       state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
@@ -239,7 +259,7 @@ class ProductNotifier extends StateNotifier<ProductState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       await _repository.createProduct(data);
-      await loadAllData();
+      loadAllData(); // reload in background
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
@@ -251,7 +271,7 @@ class ProductNotifier extends StateNotifier<ProductState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       await _repository.updateProduct(id, data);
-      await loadAllData();
+      loadAllData(); // reload in background
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
@@ -262,7 +282,7 @@ class ProductNotifier extends StateNotifier<ProductState> {
   Future<bool> deleteProduct(int id) async {
     try {
       await _repository.deleteProduct(id);
-      await loadAllData();
+      loadAllData(); // reload in background
       return true;
     } catch (e) {
       state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
@@ -287,8 +307,8 @@ class ProductNotifier extends StateNotifier<ProductState> {
         productId: productId,
       );
       final production = data.map((p) => ProductionEntry.fromJson(p as Map<String, dynamic>)).toList();
-      production.sort((a, b) => b.productionDate.compareTo(a.productionDate));
-      state = state.copyWith(production: production);
+      production.sort(_compareProductionNewestFirst);
+      state = state.copyWith(isLoading: false, production: production);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
     }
@@ -307,7 +327,7 @@ class ProductNotifier extends StateNotifier<ProductState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       await _repository.createProduction(data);
-      await loadAllData();
+      loadAllData(); // reload in background
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
@@ -319,7 +339,7 @@ class ProductNotifier extends StateNotifier<ProductState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       await _repository.updateProduction(id, data);
-      await loadAllData();
+      loadAllData(); // reload in background
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
@@ -330,7 +350,7 @@ class ProductNotifier extends StateNotifier<ProductState> {
   Future<bool> deleteProduction(int id) async {
     try {
       await _repository.deleteProduction(id);
-      await loadAllData();
+      loadAllData(); // reload in background
       return true;
     } catch (e) {
       state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
@@ -354,7 +374,10 @@ class ProductNotifier extends StateNotifier<ProductState> {
   Future<List<Map<String, dynamic>>> getProductionGroupedByDate() async {
     try {
       final data = await _repository.getProductionGroupedByDate();
-      return data.cast<Map<String, dynamic>>();
+      return data.cast<Map<String, dynamic>>()
+        ..sort((a, b) => (b['date'] ?? b['production_date'] ?? '').toString().compareTo(
+              (a['date'] ?? a['production_date'] ?? '').toString(),
+            ));
     } catch (e) {
       rethrow;
     }

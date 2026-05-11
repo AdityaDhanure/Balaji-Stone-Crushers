@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/providers/app_refresh_provider.dart';
+import '../../../../core/providers/session_ui_state_provider.dart';
 import '../providers/product_provider.dart';
 import '../widgets/widgets.dart';
 
@@ -17,12 +17,15 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> with Sing
   bool _groupByDate = false;
   List<Map<String, dynamic>> _grouped = [];
   bool _loadingGrouped = false;
-  int _lastRefresh = 0;
 
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    final initialIndex = ref.read(sessionTabIndexProvider('crusher')).clamp(0, 2).toInt();
+    _tab = TabController(length: 3, vsync: this, initialIndex: initialIndex);
+    _tab.addListener(() {
+      ref.read(sessionTabIndexProvider('crusher').notifier).state = _tab.index;
+    });
     Future.microtask(() => ref.read(productProvider.notifier).loadAllData());
   }
 
@@ -39,14 +42,8 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> with Sing
 
   @override
   Widget build(BuildContext context) {
-    final refresh = ref.watch(appRefreshProvider);
     final state = ref.watch(productProvider);
     final isSmall = MediaQuery.of(context).size.width < 800;
-
-    if (refresh != _lastRefresh) {
-      _lastRefresh = refresh;
-      Future.microtask(() => ref.read(productProvider.notifier).loadAllData());
-    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -151,12 +148,20 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> with Sing
     AddProductBottomSheet.show(
       context,
       onAddProduct: (data) async {
+        final nav = Navigator.of(context);
         final ok = await ref.read(productProvider.notifier).createProduct(data);
-        if (ok && mounted) { Navigator.pop(context); _snack('Product added', AppColors.success); }
+        if (!mounted) return;
+        if (ok) { nav.pop(); _snack('Product added', AppColors.success); }
       },
       onAddProduction: (data) async {
+        final nav = Navigator.of(context);
         final ok = await ref.read(productProvider.notifier).createProduction(data);
-        if (ok && mounted) { Navigator.pop(context); _snack('Production entry added', AppColors.success); }
+        if (!mounted) return;
+        if (ok) {
+          if (_groupByDate) await _loadGrouped();
+          nav.pop();
+          _snack('Production entry added', AppColors.success);
+        }
       },
     );
   }

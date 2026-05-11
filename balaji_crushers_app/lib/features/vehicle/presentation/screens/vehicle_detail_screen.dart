@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/providers/app_refresh_provider.dart';
+import '../../../../core/providers/session_ui_state_provider.dart';
 import '../../../../core/utils/ist_date_utils.dart';
 import '../providers/vehicle_provider.dart';
 import '../widgets/vehicle_detail_header.dart';
@@ -29,7 +30,12 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen> with 
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    final tabKey = 'vehicle-detail-${widget.vehicleId}';
+    final initialIndex = ref.read(sessionTabIndexProvider(tabKey)).clamp(0, 2).toInt();
+    _tab = TabController(length: 3, vsync: this, initialIndex: initialIndex);
+    _tab!.addListener(() {
+      ref.read(sessionTabIndexProvider(tabKey).notifier).state = _tab!.index;
+    });
     Future.microtask(() => ref.read(vehicleProvider.notifier).loadVehicleDetails(widget.vehicleId));
   }
 
@@ -152,7 +158,11 @@ class _VehicleDetailScreenState extends ConsumerState<VehicleDetailScreen> with 
             'usage_date': appDateParam(date),
           });
           if (!mounted) return;
-          if (ok) { nav.pop(); _snack('Usage added', AppColors.success); }
+          if (ok) {
+            if (_groupUsageByDate) await _loadDateGroupedUsage();
+            nav.pop();
+            _snack('Usage added', AppColors.success);
+          }
         },
       ),
     );

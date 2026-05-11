@@ -63,11 +63,11 @@ export const invalidateExpenseCache = async (id = null) => {
 };
 
 export const invalidateDieselCache = async (id = null) => {
-  await withCache.del(CACHE_KEYS.DIESEL);
-  await withCache.delPattern('diesel:consumption:*');
-  await withCache.delPattern('diesel:vehicle-wise:*');
-  await withCache.delPattern('diesel:pump-payments*');
-  await withCache.del(CACHE_KEYS.DIESEL_STOCK);
+  await withCache.invalidate(CACHE_KEYS.DIESEL);
+  await withCache.invalidatePattern('diesel:consumption:*');
+  await withCache.invalidatePattern('diesel:vehicle-wise:*');
+  await withCache.invalidatePattern('diesel:pump-payments*');
+  await withCache.invalidate(CACHE_KEYS.DIESEL_STOCK);
 };
 
 export const invalidateAttendanceCache = async (date = null) => {
@@ -93,24 +93,24 @@ export const invalidateMaintenanceCache = async (id = null) => {
 };
 
 export const invalidateCustomerCache = async (id = null) => {
-  await withCache.del(CACHE_KEYS.CUSTOMERS);
-  await withCache.delPattern('customers:*');
-  await withCache.delPattern('contacts:*');
-  await withCache.delPattern('wallet:*');
+  await withCache.invalidate(CACHE_KEYS.CUSTOMERS);
+  await withCache.invalidatePattern('customers:*');
+  await withCache.invalidatePattern('contacts:*');
+  await withCache.invalidatePattern('wallet:*');
 };
 
 export const invalidateProductCache = async (id = null) => {
-  await withCache.del(CACHE_KEYS.PRODUCTS);
-  await withCache.del(CACHE_KEYS.PRODUCT_CATEGORIES);
-  await withCache.delPattern('products:*');
-  await withCache.delPattern('production:*');
+  await withCache.invalidate(CACHE_KEYS.PRODUCTS);
+  await withCache.invalidate(CACHE_KEYS.PRODUCT_CATEGORIES);
+  await withCache.invalidatePattern('products:*');
+  await withCache.invalidatePattern('production:*');
 };
 
 export const invalidateBillingCache = async (id = null) => {
-  await withCache.del(CACHE_KEYS.BILLING_STATS);
-  await withCache.delPattern('billing:invoices:*');
-  await withCache.delPattern('billing:items:*');
-  await withCache.delPattern('billing:payments:*');
+  await withCache.invalidate(CACHE_KEYS.BILLING_STATS);
+  await withCache.invalidatePattern('billing:invoices:*');
+  await withCache.invalidatePattern('billing:items:*');
+  await withCache.invalidatePattern('billing:payments:*');
 };
 
 export const invalidateSettingsCache = async () => {

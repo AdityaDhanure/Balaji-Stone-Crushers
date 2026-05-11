@@ -491,40 +491,64 @@ export const partsQueries = {
     return result.rows;
   },
 
+  // Record part usage for a maintenance job and deduct from stock.
+  // Transactional: INSERT parts_used + UPDATE spare_parts stock must be atomic.
   recordUsage: async (data) => {
-    const part = await db.query('SELECT rate_per_unit FROM spare_parts WHERE id = $1', [data.part_id]);
-    const rate = parseFloat(part.rows[0]?.rate_per_unit || 0);
-    const quantity = data.quantity || 1;
-    const amount = rate * quantity;
-    
-    const result = await db.query(`
-      INSERT INTO parts_used (maintenance_id, part_id, quantity, rate, amount)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING *
-    `, [data.maintenance_id, data.part_id, quantity, rate, amount]);
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
 
-    await db.query(`
-      UPDATE spare_parts SET current_stock = current_stock - $1
-      WHERE id = $2
-    `, [quantity, data.part_id]);
+      const part = await client.query('SELECT rate_per_unit FROM spare_parts WHERE id = $1', [data.part_id]);
+      const rate = parseFloat(part.rows[0]?.rate_per_unit || 0);
+      const quantity = data.quantity || 1;
+      const amount = rate * quantity;
 
-    return result.rows[0];
+      const result = await client.query(`
+        INSERT INTO parts_used (maintenance_id, part_id, quantity, rate, amount)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING *
+      `, [data.maintenance_id, data.part_id, quantity, rate, amount]);
+
+      await client.query(`
+        UPDATE spare_parts SET current_stock = current_stock - $1
+        WHERE id = $2
+      `, [quantity, data.part_id]);
+
+      await client.query('COMMIT');
+      return result.rows[0];
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 };
 
 export const maintenancePartQueries = {
+  // Add parts to a maintenance record — transactional: all part INSERTs or none.
   addRecordParts: async (recordId, parts) => {
-    const results = [];
-    for (const part of parts) {
-      const result = await db.query(`
-        INSERT INTO maintenance_record_parts
-          (record_id, part_id, part_name, quantity_used)
-        VALUES ($1, $2, $3, $4)
-        RETURNING *
-      `, [recordId, part.part_id, part.part_name, part.quantity_used]);
-      results.push(result.rows[0]);
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      const results = [];
+      for (const part of parts) {
+        const result = await client.query(`
+          INSERT INTO maintenance_record_parts
+            (record_id, part_id, part_name, quantity_used)
+          VALUES ($1, $2, $3, $4)
+          RETURNING *
+        `, [recordId, part.part_id, part.part_name, part.quantity_used]);
+        results.push(result.rows[0]);
+      }
+      await client.query('COMMIT');
+      return results;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
-    return results;
   },
 
   getByRecordId: async (recordId) => {
@@ -538,30 +562,53 @@ export const maintenancePartQueries = {
     return result.rows;
   },
 
+  // Deduct multiple parts from stock — transactional: all updates or none.
   deductPartsStock: async (parts) => {
-    for (const part of parts) {
-      await db.query(`
-        UPDATE spare_parts
-        SET current_stock = current_stock - $1,
-            total_used = COALESCE(total_used, 0) + $1
-        WHERE id = $2
-      `, [part.quantity_used, part.part_id]);
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      for (const part of parts) {
+        await client.query(`
+          UPDATE spare_parts
+          SET current_stock = current_stock - $1,
+              total_used = COALESCE(total_used, 0) + $1
+          WHERE id = $2
+        `, [part.quantity_used, part.part_id]);
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
   },
 
+  // Restore parts stock when a maintenance record is deleted — transactional.
   restorePartsStock: async (recordId) => {
-    const parts = await db.query(`
-      SELECT * FROM maintenance_record_parts
-      WHERE record_id = $1
-    `, [recordId]);
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
 
-    for (const part of parts.rows) {
-      await db.query(`
-        UPDATE spare_parts
-        SET current_stock = current_stock + $1,
-            total_used = GREATEST(COALESCE(total_used, 0) - $1, 0)
-        WHERE id = $2
-      `, [part.quantity_used, part.part_id]);
+      const parts = await client.query(`
+        SELECT * FROM maintenance_record_parts WHERE record_id = $1
+      `, [recordId]);
+
+      for (const part of parts.rows) {
+        await client.query(`
+          UPDATE spare_parts
+          SET current_stock = current_stock + $1,
+              total_used = GREATEST(COALESCE(total_used, 0) - $1, 0)
+          WHERE id = $2
+        `, [part.quantity_used, part.part_id]);
+      }
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
   },
 

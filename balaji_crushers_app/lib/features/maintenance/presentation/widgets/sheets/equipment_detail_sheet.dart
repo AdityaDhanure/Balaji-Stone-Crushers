@@ -443,7 +443,7 @@ class _EquipmentDetailSheetState
 
   Future<void> _onSave() async {
     setState(() => _isSaving = true);
-    await ref.read(maintenanceProvider.notifier).updateEquipment(
+    final ok = await ref.read(maintenanceProvider.notifier).updateEquipment(
       widget.equipment.id,
       {
         'name': _nameController.text,
@@ -457,8 +457,10 @@ class _EquipmentDetailSheetState
         'is_active': _isActive,
       },
     );
-    widget.onUpdate();
-    if (mounted) {
+    if (!mounted) return;
+    setState(() => _isSaving = false);
+    if (ok) {
+      widget.onUpdate();
       Navigator.pop(context);
     }
   }

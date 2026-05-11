@@ -19,11 +19,20 @@ export const invoiceService = {
     if (!data.customer_id) {
       throw new Error('Customer is required');
     }
-    if (!data.invoice_number) {
-      data.invoice_number = await invoiceQueries.getNextNumber();
-    }
     if (!data.items || data.items.length === 0) {
       throw new Error('At least one item is required');
+    }
+
+    // Always validate/generate invoice number fresh from DB to avoid stale cache issues
+    if (!data.invoice_number) {
+      data.invoice_number = await invoiceQueries.getNextNumber();
+    } else {
+      // If caller supplied a number, verify it's not already taken
+      const existing = await invoiceQueries.getByNumber(data.invoice_number);
+      if (existing) {
+        // Auto-increment to next available number
+        data.invoice_number = await invoiceQueries.getNextNumber();
+      }
     }
 
     // Calculate invoice totals
@@ -91,9 +100,9 @@ export const invoiceService = {
     return result;
   },
 
-  // Get next invoice number with caching
+  // Get next invoice number — always queries DB directly, never cached
   async getNextInvoiceNumber() {
-    return await withCache.get('billing:next-number', async () => await invoiceQueries.getNextNumber());
+    return await invoiceQueries.getNextNumber();
   },
 
   // Get billing stats for current month with caching

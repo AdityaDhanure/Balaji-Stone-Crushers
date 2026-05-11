@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:balaji_crushers_app/core/constants/app_colors.dart';
+import 'package:balaji_crushers_app/core/providers/session_ui_state_provider.dart';
 import 'package:balaji_crushers_app/features/expense/data/models/expense_models.dart';
 import 'package:balaji_crushers_app/features/expense/data/repositories/expense_repository.dart';
 import 'package:balaji_crushers_app/features/expense/presentation/providers/expense_provider.dart';
@@ -56,8 +57,10 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: _kTabLabels.length, vsync: this);
+    final initialIndex = ref.read(sessionTabIndexProvider('expenses')).clamp(0, _kTabLabels.length - 1).toInt();
+    _tabController = TabController(length: _kTabLabels.length, vsync: this, initialIndex: initialIndex);
     _tabController.addListener(() {
+      ref.read(sessionTabIndexProvider('expenses').notifier).state = _tabController.index;
       setState(() {});
       _refresh(); // 🔥 add this
     });

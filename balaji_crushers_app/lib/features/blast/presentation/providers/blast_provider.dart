@@ -6,6 +6,51 @@ final blastRepositoryProvider = Provider<BlastRepository>((ref) {
   return BlastRepository();
 });
 
+String _mapValue(dynamic item, List<String> keys) {
+  if (item is! Map) return '';
+  for (final key in keys) {
+    final value = item[key];
+    if (value != null && value.toString().isNotEmpty) {
+      return value.toString();
+    }
+  }
+  return '';
+}
+
+int _mapId(dynamic item) {
+  if (item is! Map) return 0;
+  return int.tryParse(item['id']?.toString() ?? '') ?? 0;
+}
+
+int _compareBlastsNewestFirst(dynamic a, dynamic b) {
+  final byDate = _mapValue(b, ['blast_date', 'date', 'created_at']).compareTo(
+    _mapValue(a, ['blast_date', 'date', 'created_at']),
+  );
+  if (byDate != 0) return byDate;
+  final byNumber = _mapId(b).compareTo(_mapId(a));
+  if (byNumber != 0) return byNumber;
+  return _mapValue(b, ['blast_number']).compareTo(_mapValue(a, ['blast_number']));
+}
+
+int _compareDatedMapsNewestFirst(dynamic a, dynamic b) {
+  final byDate = _mapValue(b, ['trip_date', 'expense_date', 'date', 'created_at']).compareTo(
+    _mapValue(a, ['trip_date', 'expense_date', 'date', 'created_at']),
+  );
+  if (byDate != 0) return byDate;
+  return _mapId(b).compareTo(_mapId(a));
+}
+
+Map<String, dynamic> _sortBlastDetail(Map<String, dynamic> blast) {
+  final sorted = Map<String, dynamic>.from(blast);
+  for (final key in ['trips', 'expenses']) {
+    final value = sorted[key];
+    if (value is List) {
+      sorted[key] = [...value]..sort(_compareDatedMapsNewestFirst);
+    }
+  }
+  return sorted;
+}
+
 class BlastState {
   final bool isLoading;
   final List<dynamic> blasts;
@@ -51,7 +96,8 @@ class BlastNotifier extends StateNotifier<BlastState> {
   Future<void> loadBlasts() async {
     state = state.copyWith(isLoading: state.blasts.isEmpty, error: null);
     try {
-      final blasts = await _repository.getAllBlasts();
+      final blasts = (await _repository.getAllBlasts())
+        ..sort(_compareBlastsNewestFirst);
       state = state.copyWith(isLoading: false, blasts: blasts);
     } catch (e) {
       state = state.copyWith(
@@ -91,7 +137,7 @@ class BlastNotifier extends StateNotifier<BlastState> {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      final blast = await _repository.getBlastById(id);
+      final blast = _sortBlastDetail(await _repository.getBlastById(id));
 
       // 🔹 Show data immediately
       state = state.copyWith(
@@ -262,6 +308,8 @@ class BlastNotifier extends StateNotifier<BlastState> {
       if (state.selectedBlast != null) {
         await loadBlastDetails(state.selectedBlast!['id']);
       }
+      await loadBlasts();
+      await loadActiveBlast();
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -277,6 +325,8 @@ class BlastNotifier extends StateNotifier<BlastState> {
       if (state.selectedBlast != null) {
         await loadBlastDetails(state.selectedBlast!['id']);
       }
+      await loadBlasts();
+      await loadActiveBlast();
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -292,6 +342,8 @@ class BlastNotifier extends StateNotifier<BlastState> {
       if (state.selectedBlast != null) {
         await loadBlastDetails(state.selectedBlast!['id']);
       }
+      await loadBlasts();
+      await loadActiveBlast();
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -307,6 +359,8 @@ class BlastNotifier extends StateNotifier<BlastState> {
       if (state.selectedBlast != null) {
         await loadBlastDetails(state.selectedBlast!['id']);
       }
+      await loadBlasts();
+      await loadActiveBlast();
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -322,6 +376,8 @@ class BlastNotifier extends StateNotifier<BlastState> {
       if (state.selectedBlast != null) {
         await loadBlastDetails(state.selectedBlast!['id']);
       }
+      await loadBlasts();
+      await loadActiveBlast();
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -337,7 +393,8 @@ class BlastNotifier extends StateNotifier<BlastState> {
 
   Future<List<dynamic>> getTripsGroupedByDate(int blastId) async {
     try {
-      return await _repository.getTripsGroupedByDate(blastId);
+      return (await _repository.getTripsGroupedByDate(blastId))
+        ..sort(_compareDatedMapsNewestFirst);
     } catch (e) {
       state = state.copyWith(
         error: e.toString().replaceAll('Exception: ', ''),
@@ -348,7 +405,8 @@ class BlastNotifier extends StateNotifier<BlastState> {
 
   Future<List<dynamic>> getTripDates(int blastId) async {
     try {
-      return await _repository.getTripDates(blastId);
+      return (await _repository.getTripDates(blastId))
+        ..sort((a, b) => b.toString().compareTo(a.toString()));
     } catch (e) {
       state = state.copyWith(
         error: e.toString().replaceAll('Exception: ', ''),
@@ -359,7 +417,8 @@ class BlastNotifier extends StateNotifier<BlastState> {
 
   Future<List<dynamic>> getExpensesGroupedByDate(int blastId) async {
     try {
-      return await _repository.getExpensesGroupedByDate(blastId);
+      return (await _repository.getExpensesGroupedByDate(blastId))
+        ..sort(_compareDatedMapsNewestFirst);
     } catch (e) {
       state = state.copyWith(
         error: e.toString().replaceAll('Exception: ', ''),
@@ -370,7 +429,8 @@ class BlastNotifier extends StateNotifier<BlastState> {
 
   Future<List<dynamic>> getExpenseDates(int blastId) async {
     try {
-      return await _repository.getExpenseDates(blastId);
+      return (await _repository.getExpenseDates(blastId))
+        ..sort((a, b) => b.toString().compareTo(a.toString()));
     } catch (e) {
       state = state.copyWith(
         error: e.toString().replaceAll('Exception: ', ''),
@@ -385,6 +445,8 @@ class BlastNotifier extends StateNotifier<BlastState> {
       if (state.selectedBlast != null) {
         await loadBlastDetails(state.selectedBlast!['id']);
       }
+      await loadBlasts();
+      await loadActiveBlast();
       return true;
     } catch (e) {
       state = state.copyWith(

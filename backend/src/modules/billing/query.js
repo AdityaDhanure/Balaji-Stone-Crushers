@@ -1,8 +1,9 @@
 import db from '../../config/db.js';
+import { IST_DATE_SQL, IST_TIMESTAMP_SQL } from '../../utils/istDateTime.js';
 
 const billingDate = (col) => `(${col})::date`;
-const istDate = "(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date";
-const istTimestamp = "CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'";
+const istDate = IST_DATE_SQL;
+const istTimestamp = IST_TIMESTAMP_SQL;
 const istYear = () => new Date(Date.now() + 330 * 60 * 1000).getUTCFullYear();
 
 export const invoiceQueries = {
@@ -220,27 +221,37 @@ export const itemQueries = {
     return result.rows[0];
   },
 
-  // Batch create multiple items for an invoice
+  // Batch create multiple items for an invoice — transactional: all items insert or none.
   createBatch: async (invoiceId, items) => {
-    const results = [];
-    for (const item of items) {
-      const result = await db.query(`
-      INSERT INTO invoice_items (
-          invoice_id, product_id, description, quantity, unit, selling_rate_per_unit, amount, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, ${istTimestamp})
-        RETURNING *
-      `, [
-        invoiceId,
-        item.product_id,
-        item.description,
-        item.quantity,
-        item.unit || 'brass',
-        item.selling_rate_per_unit,
-        item.amount
-      ]);
-      results.push(result.rows[0]);
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      const results = [];
+      for (const item of items) {
+        const result = await client.query(`
+          INSERT INTO invoice_items (
+            invoice_id, product_id, description, quantity, unit, selling_rate_per_unit, amount, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, ${istTimestamp})
+          RETURNING *
+        `, [
+          invoiceId,
+          item.product_id,
+          item.description,
+          item.quantity,
+          item.unit || 'brass',
+          item.selling_rate_per_unit,
+          item.amount
+        ]);
+        results.push(result.rows[0]);
+      }
+      await client.query('COMMIT');
+      return results;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
-    return results;
   },
 
   // Update invoice item
@@ -293,77 +304,101 @@ export const paymentQueries = {
     return result.rows;
   },
 
-  // Create payment and auto-update invoice status based on amount paid
+  // Create payment and auto-update invoice status based on amount paid.
+  // Transactional: INSERT payment + recalculate totals + UPDATE invoice must be atomic.
   create: async (data) => {
-    const result = await db.query(`
-      INSERT INTO invoice_payments (
-        invoice_id, amount, payment_mode, reference_number, payment_date, notes, created_by, created_at
-      ) VALUES ($1, $2, $3, $4, COALESCE($5::date, ${istDate}), $6, $7, ${istTimestamp})
-      RETURNING *
-    `, [
-      data.invoice_id,
-      data.amount,
-      data.payment_mode,
-      data.reference_number,
-      data.payment_date || null,
-      data.notes,
-      data.created_by
-    ]);
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
 
-    // Recalculate totals and update invoice status
-    const payments = await db.query(`
-      SELECT COALESCE(SUM(amount), 0) as total FROM invoice_payments WHERE invoice_id = $1
-    `, [data.invoice_id]);
-    
-    const invoice = await db.query(`
-      SELECT total_amount FROM invoices WHERE id = $1
-    `, [data.invoice_id]);
+      const result = await client.query(`
+        INSERT INTO invoice_payments (
+          invoice_id, amount, payment_mode, reference_number, payment_date, notes, created_by, created_at
+        ) VALUES ($1, $2, $3, $4, COALESCE($5::date, ${istDate}), $6, $7, ${istTimestamp})
+        RETURNING *
+      `, [
+        data.invoice_id,
+        data.amount,
+        data.payment_mode,
+        data.reference_number,
+        data.payment_date || null,
+        data.notes,
+        data.created_by
+      ]);
 
-    const totalPaid = parseFloat(payments.rows[0].total);
-    const totalAmount = parseFloat(invoice.rows[0].total_amount);
-
-    let status = 'partial';
-    if (totalPaid >= totalAmount) status = 'paid';
-    else if (totalPaid == 0) status = 'pending';
-
-    await db.query(`
-      UPDATE invoices SET amount_paid = $1, status = $2, updated_at = ${istTimestamp}
-      WHERE id = $3
-    `, [totalPaid, status, data.invoice_id]);
-
-    return result.rows[0];
-  },
-
-  // Delete payment and recalculate invoice status
-  delete: async (id) => {
-    const payment = await db.query('SELECT invoice_id FROM invoice_payments WHERE id = $1', [id]);
-    const invoiceId = payment.rows[0]?.invoice_id;
-    
-    await db.query('DELETE FROM invoice_payments WHERE id = $1', [id]);
-    
-    if (invoiceId) {
-      const payments = await db.query(`
+      // Recalculate totals and update invoice status
+      const payments = await client.query(`
         SELECT COALESCE(SUM(amount), 0) as total FROM invoice_payments WHERE invoice_id = $1
-      `, [invoiceId]);
-      
-      const invoice = await db.query(`
+      `, [data.invoice_id]);
+
+      const invoice = await client.query(`
         SELECT total_amount FROM invoices WHERE id = $1
-      `, [invoiceId]);
+      `, [data.invoice_id]);
 
       const totalPaid = parseFloat(payments.rows[0].total);
       const totalAmount = parseFloat(invoice.rows[0].total_amount);
 
       let status = 'partial';
-      if (totalAmount == 0) status = 'draft';
-      else if (totalPaid >= totalAmount) status = 'paid';
-      else if (totalPaid == 0) status = 'pending';
+      if (totalPaid >= totalAmount) status = 'paid';
+      else if (totalPaid === 0) status = 'pending';
 
-      await db.query(`
+      await client.query(`
         UPDATE invoices SET amount_paid = $1, status = $2, updated_at = ${istTimestamp}
         WHERE id = $3
-      `, [totalPaid, status, invoiceId]);
+      `, [totalPaid, status, data.invoice_id]);
+
+      await client.query('COMMIT');
+      return result.rows[0];
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
-    
-    return { deleted: true };
+  },
+
+  // Delete payment and recalculate invoice status.
+  // Transactional: DELETE payment + recalculate totals + UPDATE invoice must be atomic.
+  delete: async (id) => {
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      const payment = await client.query('SELECT invoice_id FROM invoice_payments WHERE id = $1', [id]);
+      const invoiceId = payment.rows[0]?.invoice_id;
+
+      await client.query('DELETE FROM invoice_payments WHERE id = $1', [id]);
+
+      if (invoiceId) {
+        const payments = await client.query(`
+          SELECT COALESCE(SUM(amount), 0) as total FROM invoice_payments WHERE invoice_id = $1
+        `, [invoiceId]);
+
+        const invoice = await client.query(`
+          SELECT total_amount FROM invoices WHERE id = $1
+        `, [invoiceId]);
+
+        const totalPaid = parseFloat(payments.rows[0].total);
+        const totalAmount = parseFloat(invoice.rows[0].total_amount);
+
+        let status = 'partial';
+        if (totalAmount === 0) status = 'draft';
+        else if (totalPaid >= totalAmount) status = 'paid';
+        else if (totalPaid === 0) status = 'pending';
+
+        await client.query(`
+          UPDATE invoices SET amount_paid = $1, status = $2, updated_at = ${istTimestamp}
+          WHERE id = $3
+        `, [totalPaid, status, invoiceId]);
+      }
+
+      await client.query('COMMIT');
+      return { deleted: true };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 };

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/providers/app_refresh_provider.dart';
+import '../../../../core/providers/session_ui_state_provider.dart';
 import '../providers/billing_provider.dart';
 import '../widgets/billing_stats_card.dart';
 import '../widgets/invoices_tab.dart';
@@ -22,12 +22,15 @@ class _BillingListScreenState extends ConsumerState<BillingListScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   DateTimeRange? _dateRange;
-  int _lastRefreshTrigger = 0;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    final initialIndex = ref.read(sessionTabIndexProvider('billing')).clamp(0, 3).toInt();
+    _tabController = TabController(length: 4, vsync: this, initialIndex: initialIndex);
+    _tabController.addListener(() {
+      ref.read(sessionTabIndexProvider('billing').notifier).state = _tabController.index;
+    });
     Future.microtask(() => ref.read(billingProvider.notifier).loadAllData());
   }
 
@@ -39,14 +42,8 @@ class _BillingListScreenState extends ConsumerState<BillingListScreen>
 
   @override
   Widget build(BuildContext context) {
-    final refreshTrigger = ref.watch(appRefreshProvider);
     final state = ref.watch(billingProvider);
     final isSmall = MediaQuery.of(context).size.width < 800;
-
-    if (refreshTrigger != _lastRefreshTrigger) {
-      _lastRefreshTrigger = refreshTrigger;
-      Future.microtask(() => ref.read(billingProvider.notifier).loadAllData());
-    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -244,8 +241,10 @@ class _BillingListScreenState extends ConsumerState<BillingListScreen>
       context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
       builder: (_) => CreateInvoiceSheet(
         onSave: (data) async {
+          final nav = Navigator.of(context);
           final ok = await ref.read(billingProvider.notifier).createInvoice(data);
-          if (ok && mounted) { Navigator.pop(context); _snack('Invoice created', AppColors.success); }
+          if (!mounted) return;
+          if (ok) { nav.pop(); _snack('Invoice created', AppColors.success); }
         },
       ),
     );
@@ -286,15 +285,11 @@ class _BillingListScreenState extends ConsumerState<BillingListScreen>
       builder: (_) => CreateInvoiceSheet(
         existingInvoice: invoice,
         onSave: (data) async {
-          // Preserve the existing status when editing
+          final nav = Navigator.of(context);
           final payload = {...data, 'status': invoice.status};
           final ok = await ref.read(billingProvider.notifier).updateInvoice(invoice.id, payload);
-          if (ok && mounted) {
-            // ignore: use_build_context_synchronously
-            Navigator.pop(context);
-            ref.read(billingProvider.notifier).loadAllData();
-            _snack('Invoice updated', AppColors.success);
-          }
+          if (!mounted) return;
+          if (ok) { nav.pop(); _snack('Invoice updated', AppColors.success); }
         },
       ),
     );

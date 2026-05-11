@@ -26,6 +26,24 @@ dynamic _unwrap(dynamic res) {
   return res;
 }
 
+int _compareEmployeesByName(Employee a, Employee b) {
+  final byName = a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase());
+  if (byName != 0) return byName;
+  return a.id.compareTo(b.id);
+}
+
+int _compareDepartmentsByName(Department a, Department b) {
+  final byName = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  if (byName != 0) return byName;
+  return a.id.compareTo(b.id);
+}
+
+int _compareLeavesNewestFirst(PendingLeave a, PendingLeave b) {
+  final byDate = b.startDate.compareTo(a.startDate);
+  if (byDate != 0) return byDate;
+  return b.id.compareTo(a.id);
+}
+
 class EmployeeState {
   final bool isLoading;
   final List<Employee> employees;
@@ -312,10 +330,11 @@ class EmployeeNotifier extends StateNotifier<EmployeeState> {
       final employees = (data as List)
           .whereType<Map<String, dynamic>>()
           .map(Employee.fromJson)
-          .toList();
-      state = state.copyWith(employees: employees);
+          .toList()
+        ..sort(_compareEmployeesByName);
+      state = state.copyWith(isLoading: false, employees: employees);
     } catch (e) {
-      state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
+      state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
     }
   }
 
@@ -325,7 +344,8 @@ class EmployeeNotifier extends StateNotifier<EmployeeState> {
       final employees = (data as List)
           .whereType<Map<String, dynamic>>()
           .map(Employee.fromJson)
-          .toList();
+          .toList()
+        ..sort(_compareEmployeesByName);
 
       state = state.copyWith(employees: employees);
     } catch (e) {
@@ -339,7 +359,8 @@ class EmployeeNotifier extends StateNotifier<EmployeeState> {
       final departments = (data as List)
           .whereType<Map<String, dynamic>>()
           .map(Department.fromJson)
-          .toList();
+          .toList()
+        ..sort(_compareDepartmentsByName);
       state = state.copyWith(departments: departments);
     } catch (e) {
       state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
@@ -352,7 +373,8 @@ class EmployeeNotifier extends StateNotifier<EmployeeState> {
       final leaves = (data as List)
           .whereType<Map<String, dynamic>>()
           .map(PendingLeave.fromJson)
-          .toList();
+          .toList()
+        ..sort(_compareLeavesNewestFirst);
       state = state.copyWith(pendingLeaves: leaves);
     } catch (e) {
       state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
@@ -447,17 +469,20 @@ class EmployeeNotifier extends StateNotifier<EmployeeState> {
       final employees = (results[0] as List)
           .whereType<Map<String, dynamic>>()
           .map(Employee.fromJson)
-          .toList();
+          .toList()
+        ..sort(_compareEmployeesByName);
 
       final departments = (results[1] as List)
           .whereType<Map<String, dynamic>>()
           .map(Department.fromJson)
-          .toList();
+          .toList()
+        ..sort(_compareDepartmentsByName);
 
       final leaves = (results[2] as List)
           .whereType<Map<String, dynamic>>()
           .map(PendingLeave.fromJson)
-          .toList();
+          .toList()
+        ..sort(_compareLeavesNewestFirst);
 
       final stats = EmployeeStats.fromJson(results[3]);
 

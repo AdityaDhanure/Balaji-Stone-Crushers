@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/providers/app_refresh_provider.dart';
 import '../../../../core/utils/ist_date_utils.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../widgets/profile_avatar_header.dart';
@@ -148,9 +149,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   @override
   Widget build(BuildContext context) {
-    // ref.listen is intentionally NOT used here because it only fires on
-    // state changes AFTER the widget mounts, never for the current state.
-    // _loadProfile() handles the initial reveal via addPostFrameCallback.
+    // Reload profile whenever the global refresh button is pressed
+    ref.listen<int>(appRefreshProvider, (_, __) => _loadProfile());
 
     final authState = ref.watch(authProvider);
     final user = authState.user;

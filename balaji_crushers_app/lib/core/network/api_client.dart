@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../constants/api_constants.dart';
@@ -10,6 +12,11 @@ class ApiClient {
   late final Dio dio;
   final _storage = const FlutterSecureStorage();
   String? _token;
+  final StreamController<int> _mutationController =
+      StreamController<int>.broadcast();
+  int _mutationRevision = 0;
+
+  Stream<int> get mutationStream => _mutationController.stream;
 
   void initialize() {
     dio = Dio(
@@ -39,8 +46,30 @@ class ApiClient {
 
           return handler.next(options);
         },
+        onResponse: (response, handler) {
+          final path = response.requestOptions.path;
+          if (_isMutation(response.requestOptions.method) &&
+              !path.startsWith('/auth')) {
+            _mutationRevision++;
+            _mutationController.add(_mutationRevision);
+          }
+
+          return handler.next(response);
+        },
       ),
     );
+  }
+
+  bool _isMutation(String method) {
+    switch (method.toUpperCase()) {
+      case 'POST':
+      case 'PUT':
+      case 'PATCH':
+      case 'DELETE':
+        return true;
+      default:
+        return false;
+    }
   }
 
   Future<void> setToken(String token) async {

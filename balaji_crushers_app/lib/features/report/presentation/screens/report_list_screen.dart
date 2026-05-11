@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:balaji_crushers_app/core/constants/app_colors.dart';
+import 'package:balaji_crushers_app/core/providers/session_ui_state_provider.dart';
 import 'package:balaji_crushers_app/core/utils/ist_date_utils.dart';
 import 'package:balaji_crushers_app/features/report/presentation/providers/report_provider.dart';
 import 'package:balaji_crushers_app/features/report/presentation/widgets/report_period_selector.dart';
@@ -56,8 +57,12 @@ class _ReportListScreenState extends ConsumerState<ReportListScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: _tabs.length, vsync: this);
-    _tabController.addListener(() => setState(() {}));
+    final initialIndex = ref.read(sessionTabIndexProvider('reports')).clamp(0, _tabs.length - 1).toInt();
+    _tabController = TabController(length: _tabs.length, vsync: this, initialIndex: initialIndex);
+    _tabController.addListener(() {
+      ref.read(sessionTabIndexProvider('reports').notifier).state = _tabController.index;
+      setState(() {});
+    });
   }
 
   @override

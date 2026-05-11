@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/providers/app_refresh_provider.dart';
+import '../../../../core/providers/session_ui_state_provider.dart';
 import '../providers/diesel_provider.dart';
 import '../widgets/widgets.dart';
 
@@ -18,12 +18,15 @@ class _DieselListScreenState extends ConsumerState<DieselListScreen> with Single
   bool _groupPurchasesByDate = false;
   List<dynamic> _dateGroupedConsumption = [];
   bool _loadingDateConsumption = false;
-  int _lastRefresh = 0;
 
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    final initialIndex = ref.read(sessionTabIndexProvider('diesel')).clamp(0, 2).toInt();
+    _tab = TabController(length: 3, vsync: this, initialIndex: initialIndex);
+    _tab!.addListener(() {
+      ref.read(sessionTabIndexProvider('diesel').notifier).state = _tab!.index;
+    });
     Future.microtask(() => ref.read(dieselProvider.notifier).loadAllData());
   }
 
@@ -40,14 +43,8 @@ class _DieselListScreenState extends ConsumerState<DieselListScreen> with Single
 
   @override
   Widget build(BuildContext context) {
-    final refresh = ref.watch(appRefreshProvider);
     final state = ref.watch(dieselProvider);
     final isSmall = MediaQuery.of(context).size.width < 800;
-
-    if (refresh != _lastRefresh) {
-      _lastRefresh = refresh;
-      Future.microtask(() => ref.read(dieselProvider.notifier).loadAllData());
-    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -145,12 +142,20 @@ class _DieselListScreenState extends ConsumerState<DieselListScreen> with Single
     AddDieselBottomSheet.show(
       context,
       onAddPurchase: (data) async {
+        final nav = Navigator.of(context);
         final ok = await ref.read(dieselProvider.notifier).createPurchase(data);
-        if (ok && mounted) { Navigator.pop(context); _snack('Purchase added', AppColors.success); }
+        if (!mounted) return;
+        if (ok) { nav.pop(); _snack('Purchase added', AppColors.success); }
       },
       onAddConsumption: (data) async {
+        final nav = Navigator.of(context);
         final ok = await ref.read(dieselProvider.notifier).createConsumption(data);
-        if (ok && mounted) { Navigator.pop(context); _snack('Consumption recorded', AppColors.success); }
+        if (!mounted) return;
+        if (ok) {
+          if (_groupConsumptionByDate) await _loadDateGroupedConsumption();
+          nav.pop();
+          _snack('Consumption recorded', AppColors.success);
+        }
       },
     );
   }

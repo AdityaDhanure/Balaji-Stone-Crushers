@@ -1,9 +1,10 @@
 import db from '../../config/db.js';
+import { IST_TIMESTAMP_SQL } from '../../utils/istDateTime.js';
 
 // Reusable date-range WHERE clause (NULL-safe, same $1/$2 across all subqueries)
 const expenseDate = (col) => `(${col})::date`;
 
-const istTimestamp = "CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'";
+const istTimestamp = IST_TIMESTAMP_SQL;
 
 const dateWhere = (col) =>
   `($1::date IS NULL OR ${expenseDate(col)} >= $1::date) AND ($2::date IS NULL OR ${expenseDate(col)} <= $2::date)`;

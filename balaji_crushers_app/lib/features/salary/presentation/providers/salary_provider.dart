@@ -6,9 +6,51 @@ import 'package:balaji_crushers_app/features/attendance/presentation/providers/a
 
 final salaryRepositoryProvider = Provider((ref) => SalaryRepository());
 
+int _comparePeriodsNewestFirst(SalaryPeriod a, SalaryPeriod b) {
+  final byYear = b.year.compareTo(a.year);
+  if (byYear != 0) return byYear;
+  return b.month.compareTo(a.month);
+}
+
+int _compareEmployeeSalaryByName(EmployeeSalary a, EmployeeSalary b) {
+  final byName = a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase());
+  if (byName != 0) return byName;
+  return a.id.compareTo(b.id);
+}
+
+int _compareDepartmentsByName(Department a, Department b) {
+  final byName = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  if (byName != 0) return byName;
+  return a.id.compareTo(b.id);
+}
+
+int _compareSalarySlipsByEmployee(SalarySlip a, SalarySlip b) {
+  final byName = a.employeeName.toLowerCase().compareTo(b.employeeName.toLowerCase());
+  if (byName != 0) return byName;
+  return (a.id ?? 0).compareTo(b.id ?? 0);
+}
+
+int _compareAdvancesNewestFirst(SalaryAdvance a, SalaryAdvance b) {
+  final byDate = b.requestDate.compareTo(a.requestDate);
+  if (byDate != 0) return byDate;
+  return (b.id ?? 0).compareTo(a.id ?? 0);
+}
+
+int _compareDeductionsByName(SalaryDeduction a, SalaryDeduction b) {
+  final byName = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  if (byName != 0) return byName;
+  return (a.id ?? 0).compareTo(b.id ?? 0);
+}
+
+int _compareEarningsByName(SalaryEarning a, SalaryEarning b) {
+  final byName = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  if (byName != 0) return byName;
+  return (a.id ?? 0).compareTo(b.id ?? 0);
+}
+
 final periodsProvider = FutureProvider<List<SalaryPeriod>>((ref) async {
   final repo = ref.read(salaryRepositoryProvider);
-  return repo.getPeriods();
+  return (await repo.getPeriods())..sort(_comparePeriodsNewestFirst);
 });
 
 final periodByIdProvider = FutureProvider.family<SalaryPeriod?, int>((ref, id) async {
@@ -75,17 +117,17 @@ final employeeAttendanceByPeriodProvider = FutureProvider.autoDispose
 
 final employeesForSalaryProvider = FutureProvider<List<EmployeeSalary>>((ref) async {
   final repo = ref.read(salaryRepositoryProvider);
-  return repo.getEmployees();
+  return (await repo.getEmployees())..sort(_compareEmployeeSalaryByName);
 });
 
 final departmentsForSalaryProvider = FutureProvider<List<Department>>((ref) async {
   final repo = ref.read(salaryRepositoryProvider);
-  return repo.getDepartments();
+  return (await repo.getDepartments())..sort(_compareDepartmentsByName);
 });
  
 final salarySlipsByPeriodProvider = FutureProvider.family<List<SalarySlip>, int>((ref, periodId) async {
   final repo = ref.read(salaryRepositoryProvider);
-  return repo.getSalarySlipsByPeriod(periodId);
+  return (await repo.getSalarySlipsByPeriod(periodId))..sort(_compareSalarySlipsByEmployee);
 });
 
 final salarySlipProvider = FutureProvider.family<SalarySlip, int>((ref, id) async {
@@ -101,12 +143,12 @@ final salarySummaryProvider = FutureProvider.family<SalarySummary, int>((ref, pe
 
 final advancesProvider = FutureProvider.family<List<SalaryAdvance>, int?>((ref, employeeId) async {
   final repo = ref.read(salaryRepositoryProvider);
-  return repo.getAdvances(employeeId: employeeId);
+  return (await repo.getAdvances(employeeId: employeeId))..sort(_compareAdvancesNewestFirst);
 });
 
 final deductionsProvider = FutureProvider<List<SalaryDeduction>>((ref) async {
   final repo = ref.read(salaryRepositoryProvider);
-  return repo.getDeductions();
+  return (await repo.getDeductions())..sort(_compareDeductionsByName);
 });
 
 class SalaryNotifier extends StateNotifier<AsyncValue<List<SalarySlip>>> {
@@ -141,6 +183,7 @@ class SalaryNotifier extends StateNotifier<AsyncValue<List<SalarySlip>>> {
         departmentId: departmentId,
       );
 
+      slips.sort(_compareSalarySlipsByEmployee);
       state = AsyncValue.data(slips);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -249,6 +292,7 @@ class AdvanceNotifier extends StateNotifier<AsyncValue<List<SalaryAdvance>>> {
     state = const AsyncValue.loading();
     try {
       final advances = await _repo.getAdvances(employeeId: employeeId);
+      advances.sort(_compareAdvancesNewestFirst);
       state = AsyncValue.data(advances);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -298,6 +342,7 @@ class DeductionNotifier extends StateNotifier<AsyncValue<List<SalaryDeduction>>>
     state = const AsyncValue.loading();
     try {
       final deductions = await _repo.getDeductions();
+      deductions.sort(_compareDeductionsByName);
       state = AsyncValue.data(deductions);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -357,12 +402,13 @@ final deductionNotifierProvider = StateNotifierProvider<DeductionNotifier, Async
 final activeDeductionsProvider = FutureProvider<List<SalaryDeduction>>((ref) async {
   final repo = ref.read(salaryRepositoryProvider);
   final all = await repo.getDeductions();
-  return all.where((d) => d.isActive == true).toList();
+  return all.where((d) => d.isActive == true).toList()
+    ..sort(_compareDeductionsByName);
 });
 
 final activeEarningsProvider = FutureProvider<List<SalaryEarning>>((ref) async {
   final repo = ref.read(salaryRepositoryProvider);
-  return repo.getEarnings(activeOnly: true);
+  return (await repo.getEarnings(activeOnly: true))..sort(_compareEarningsByName);
 });
 
 class EarningNotifier extends StateNotifier<AsyncValue<List<SalaryEarning>>> {
@@ -377,6 +423,7 @@ class EarningNotifier extends StateNotifier<AsyncValue<List<SalaryEarning>>> {
     state = const AsyncValue.loading();
     try {
       final earnings = await _repo.getEarnings();
+      earnings.sort(_compareEarningsByName);
       state = AsyncValue.data(earnings);
     } catch (e, st) {
       state = AsyncValue.error(e, st);

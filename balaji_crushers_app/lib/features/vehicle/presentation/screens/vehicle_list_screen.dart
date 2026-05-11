@@ -41,7 +41,6 @@ class _VehicleListScreenState extends ConsumerState<VehicleListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final refresh = ref.watch(appRefreshProvider);
     final state = ref.watch(vehicleProvider);
     final isSmall = MediaQuery.of(context).size.width < 800;
 

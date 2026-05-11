@@ -26,6 +26,30 @@ bool _toBool(dynamic val) {
   return false;
 }
 
+int _compareMaintenanceNewestFirst(MaintenanceRecord a, MaintenanceRecord b) {
+  final byDate = b.maintenanceDate.compareTo(a.maintenanceDate);
+  if (byDate != 0) return byDate;
+  return b.id.compareTo(a.id);
+}
+
+int _compareEquipmentByName(Equipment a, Equipment b) {
+  final byName = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  if (byName != 0) return byName;
+  return a.id.compareTo(b.id);
+}
+
+int _compareVendorsByName(Vendor a, Vendor b) {
+  final byName = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  if (byName != 0) return byName;
+  return a.id.compareTo(b.id);
+}
+
+int _comparePartsByName(SparePart a, SparePart b) {
+  final byName = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  if (byName != 0) return byName;
+  return a.id.compareTo(b.id);
+}
+
 final maintenanceRepositoryProvider = Provider<MaintenanceRepository>((ref) {
   return MaintenanceRepository();
 });
@@ -390,7 +414,8 @@ class MaintenanceNotifier extends StateNotifier<MaintenanceState> {
       final records = (data as List)
         .whereType<Map<String, dynamic>>()
         .map((r) => MaintenanceRecord.fromJson(r))
-        .toList();
+        .toList()
+        ..sort(_compareMaintenanceNewestFirst);
       state = state.copyWith(isLoading: false, records: records);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
@@ -398,14 +423,14 @@ class MaintenanceNotifier extends StateNotifier<MaintenanceState> {
   }
 
   Future<void> loadEquipment() async {
-    if (state.equipment.isNotEmpty) return; // prevent reload
     try {
       final data = await _repository.getEquipment();
 
       final equipment = (data as List)
         .whereType<Map<String, dynamic>>()
         .map((e) => Equipment.fromJson(e))
-        .toList();
+        .toList()
+        ..sort(_compareEquipmentByName);
 
       state = state.copyWith(equipment: equipment);
     } catch (e) {
@@ -431,7 +456,11 @@ class MaintenanceNotifier extends StateNotifier<MaintenanceState> {
       await _repository.createMaintenance(data);
       // Reload full list — the create response lacks JOINed fields
       // (equipment_name, vendor_name, etc.) which causes "Unknown" display.
-      await loadRecords();
+      await Future.wait([
+        loadRecords(),
+        loadStats(),
+      ]);
+      state = state.copyWith(isLoading: false);
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
@@ -444,7 +473,11 @@ class MaintenanceNotifier extends StateNotifier<MaintenanceState> {
     try {
       // Update on backend, then reload to get full joined fields
       await _repository.updateMaintenance(id, data);
-      await loadRecords();
+      await Future.wait([
+        loadRecords(),
+        loadStats(),
+      ]);
+      state = state.copyWith(isLoading: false);
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
@@ -457,9 +490,11 @@ class MaintenanceNotifier extends StateNotifier<MaintenanceState> {
     try {
       await _repository.deleteMaintenanceWithRecovery(id, recoverParts);
 
-      state = state.copyWith(
-        records: state.records.where((r) => r.id != id).toList(),
-      );
+      await Future.wait([
+        loadRecords(),
+        loadStats(),
+      ]);
+      state = state.copyWith(isLoading: false);
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
@@ -475,8 +510,9 @@ class MaintenanceNotifier extends StateNotifier<MaintenanceState> {
 
       state = state.copyWith(
         isLoading: false,
-        equipment: [newItem, ...state.equipment],
+        equipment: ([...state.equipment, newItem]..sort(_compareEquipmentByName)),
       );
+      await loadStats();
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
@@ -494,6 +530,7 @@ class MaintenanceNotifier extends StateNotifier<MaintenanceState> {
         isLoading: false,
         equipment: state.equipment.where((e) => e.id != id).toList(),
       );
+      await loadStats();
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
@@ -512,7 +549,8 @@ class MaintenanceNotifier extends StateNotifier<MaintenanceState> {
 
       state = state.copyWith(
         isLoading: false,
-        equipment: state.equipment.map((e) => e.id == id ? updated : e).toList(),
+        equipment: (state.equipment.map((e) => e.id == id ? updated : e).toList()
+          ..sort(_compareEquipmentByName)),
       );
       return true;
     } catch (e) {
@@ -522,13 +560,13 @@ class MaintenanceNotifier extends StateNotifier<MaintenanceState> {
   }
 
   Future<void> loadVendors() async {
-    if (state.vendors.isNotEmpty) return; // prevent reload
     try {
       final data = await _repository.getVendors();
       final vendors = (data as List)
         .whereType<Map<String, dynamic>>()
         .map((v) => Vendor.fromJson(v))
-        .toList();
+        .toList()
+        ..sort(_compareVendorsByName);
       state = state.copyWith(vendors: vendors);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
@@ -541,7 +579,7 @@ class MaintenanceNotifier extends StateNotifier<MaintenanceState> {
       final newItem = Vendor.fromJson(newData);
 
       state = state.copyWith(
-        vendors: [newItem, ...state.vendors],
+        vendors: ([...state.vendors, newItem]..sort(_compareVendorsByName)),
       );
       return true;
     } catch (e) {
@@ -573,7 +611,8 @@ class MaintenanceNotifier extends StateNotifier<MaintenanceState> {
       final updated = Vendor.fromJson(updatedData);
 
       state = state.copyWith(
-        vendors: state.vendors.map((v) => v.id == id ? updated : v).toList(),
+        vendors: (state.vendors.map((v) => v.id == id ? updated : v).toList()
+          ..sort(_compareVendorsByName)),
       );
       return true;
     } catch (e) {
@@ -589,7 +628,8 @@ class MaintenanceNotifier extends StateNotifier<MaintenanceState> {
       final parts = (data as List)
         .whereType<Map<String, dynamic>>()
         .map((p) => SparePart.fromJson(p))
-        .toList();
+        .toList()
+        ..sort(_comparePartsByName);
       state = state.copyWith(parts: parts);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
@@ -602,7 +642,7 @@ class MaintenanceNotifier extends StateNotifier<MaintenanceState> {
       final newItem = SparePart.fromJson(newData);
 
       state = state.copyWith(
-        parts: [newItem, ...state.parts],
+        parts: ([...state.parts, newItem]..sort(_comparePartsByName)),
       );
       return true;
     } catch (e) {
@@ -634,7 +674,8 @@ class MaintenanceNotifier extends StateNotifier<MaintenanceState> {
       final updated = SparePart.fromJson(updatedData);
 
       state = state.copyWith(
-        parts: state.parts.map((p) => p.id == id ? updated : p).toList(),
+        parts: (state.parts.map((p) => p.id == id ? updated : p).toList()
+          ..sort(_comparePartsByName)),
       );
       return true;
     } catch (e) {
@@ -653,7 +694,8 @@ class MaintenanceNotifier extends StateNotifier<MaintenanceState> {
       return (data as List? ?? [])
         .whereType<Map<String, dynamic>>()
         .map((r) => MaintenanceRecord.fromJson(r))
-        .toList();
+        .toList()
+        ..sort(_compareMaintenanceNewestFirst);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
       return [];

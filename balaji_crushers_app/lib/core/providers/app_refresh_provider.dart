@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../network/api_client.dart';
 
 class AppRefreshNotifier extends StateNotifier<int> {
   AppRefreshNotifier() : super(0);
@@ -10,6 +11,10 @@ class AppRefreshNotifier extends StateNotifier<int> {
 
 final appRefreshProvider = StateNotifierProvider<AppRefreshNotifier, int>((ref) {
   return AppRefreshNotifier();
+});
+
+final apiMutationProvider = StreamProvider<int>((ref) {
+  return ApiClient().mutationStream;
 });
 
 /// Stores the last non-profile route so the Profile back button

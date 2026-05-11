@@ -6,6 +6,38 @@ final vehicleRepositoryProvider = Provider<VehicleRepository>((ref) {
   return VehicleRepository();
 });
 
+String _mapValue(dynamic item, List<String> keys) {
+  if (item is! Map) return '';
+  for (final key in keys) {
+    final value = item[key];
+    if (value != null && value.toString().isNotEmpty) {
+      return value.toString();
+    }
+  }
+  return '';
+}
+
+int _mapId(dynamic item) {
+  if (item is! Map) return 0;
+  return int.tryParse(item['id']?.toString() ?? '') ?? 0;
+}
+
+int _compareVehicleMaps(dynamic a, dynamic b) {
+  final byNumber = _mapValue(a, ['vehicle_number']).toLowerCase().compareTo(
+        _mapValue(b, ['vehicle_number']).toLowerCase(),
+      );
+  if (byNumber != 0) return byNumber;
+  return _mapId(a).compareTo(_mapId(b));
+}
+
+int _compareUsageNewestFirst(dynamic a, dynamic b) {
+  final byDate = _mapValue(b, ['usage_date', 'date', 'created_at']).compareTo(
+    _mapValue(a, ['usage_date', 'date', 'created_at']),
+  );
+  if (byDate != 0) return byDate;
+  return _mapId(b).compareTo(_mapId(a));
+}
+
 class VehicleState {
   final bool isLoading;
   final List<dynamic> vehicles;
@@ -58,7 +90,8 @@ class VehicleNotifier extends StateNotifier<VehicleState> {
   Future<void> loadVehicles() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final vehicles = await _repository.getAllVehicles();
+      final vehicles = (await _repository.getAllVehicles())
+        ..sort(_compareVehicleMaps);
       state = state.copyWith(isLoading: false, vehicles: vehicles);
     } catch (e) {
       state = state.copyWith(
@@ -93,7 +126,8 @@ class VehicleNotifier extends StateNotifier<VehicleState> {
       );
 
       // 🔹 STEP 3: Load usage in background
-      final usage = await _repository.getVehicleUsage(id);
+      final usage = (await _repository.getVehicleUsage(id))
+        ..sort(_compareUsageNewestFirst);
 
       // 🔹 STEP 4: Update usage separately
       state = state.copyWith(usageRecords: usage);
@@ -111,6 +145,7 @@ class VehicleNotifier extends StateNotifier<VehicleState> {
     try {
       await _repository.createVehicle(data);
       await loadVehicles();
+      await loadExpiringDocuments();
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -126,6 +161,7 @@ class VehicleNotifier extends StateNotifier<VehicleState> {
     try {
       await _repository.updateVehicle(id, data);
       await loadVehicles();
+      await loadExpiringDocuments();
       if (state.selectedVehicle?['id'] == id) {
         await loadVehicleDetails(id);
       }
@@ -144,6 +180,7 @@ class VehicleNotifier extends StateNotifier<VehicleState> {
     try {
       await _repository.deleteVehicle(id);
       await loadVehicles();
+      await loadExpiringDocuments();
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -203,7 +240,8 @@ class VehicleNotifier extends StateNotifier<VehicleState> {
 
   Future<List<dynamic>> getUsageGroupedByDate(int vehicleId) async {
     try {
-      return await _repository.getUsageGroupedByDate(vehicleId);
+      return (await _repository.getUsageGroupedByDate(vehicleId))
+        ..sort(_compareUsageNewestFirst);
     } catch (e) {
       state = state.copyWith(
         error: e.toString().replaceAll('Exception: ', ''),
@@ -214,7 +252,8 @@ class VehicleNotifier extends StateNotifier<VehicleState> {
 
   Future<List<dynamic>> getUsageDates(int vehicleId) async {
     try {
-      return await _repository.getUsageDates(vehicleId);
+      return (await _repository.getUsageDates(vehicleId))
+        ..sort((a, b) => b.toString().compareTo(a.toString()));
     } catch (e) {
       state = state.copyWith(
         error: e.toString().replaceAll('Exception: ', ''),

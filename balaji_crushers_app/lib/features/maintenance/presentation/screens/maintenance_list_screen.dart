@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/providers/app_refresh_provider.dart';
+import '../../../../core/providers/session_ui_state_provider.dart';
 import '../providers/maintenance_provider.dart';
 import '../widgets/maintenance_stats_card.dart';
 import '../widgets/records_tab.dart';
@@ -30,7 +31,11 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen>
   void initState() {
     super.initState();
 
-    _tabController = TabController(length: 3, vsync: this);
+    final initialIndex = ref.read(sessionTabIndexProvider('maintenance')).clamp(0, 2).toInt();
+    _tabController = TabController(length: 3, vsync: this, initialIndex: initialIndex);
+    _tabController.addListener(() {
+      ref.read(sessionTabIndexProvider('maintenance').notifier).state = _tabController.index;
+    });
 
     Future.microtask(() {
       ref.read(maintenanceProvider.notifier).loadAllData();
@@ -279,8 +284,8 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen>
       backgroundColor: Colors.transparent,
       builder: (_) => AddVendorSheet(
         onSave: (data) async {
-          await ref.read(maintenanceProvider.notifier).createVendor(data);
-          if (mounted) {
+          final ok = await ref.read(maintenanceProvider.notifier).createVendor(data);
+          if (ok && mounted) {
             Navigator.pop(context);
             _showSnackBar('Vendor added', AppColors.success);
           }

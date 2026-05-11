@@ -7,6 +7,24 @@ final dieselRepositoryProvider = Provider<DieselRepository>((ref) {
   return DieselRepository();
 });
 
+int _comparePurchasesNewestFirst(DieselPurchase a, DieselPurchase b) {
+  final byDate = b.purchaseDate.compareTo(a.purchaseDate);
+  if (byDate != 0) return byDate;
+  return b.id.compareTo(a.id);
+}
+
+int _compareConsumptionNewestFirst(DieselConsumption a, DieselConsumption b) {
+  final byDate = b.consumptionDate.compareTo(a.consumptionDate);
+  if (byDate != 0) return byDate;
+  return b.id.compareTo(a.id);
+}
+
+int _compareVehiclesByNumber(VehicleSimple a, VehicleSimple b) {
+  final byNumber = a.vehicleNumber.toLowerCase().compareTo(b.vehicleNumber.toLowerCase());
+  if (byNumber != 0) return byNumber;
+  return a.id.compareTo(b.id);
+}
+
 class DieselState {
   final bool isLoading;
   final DieselStockOverview stockOverview;
@@ -219,8 +237,9 @@ class DieselNotifier extends StateNotifier<DieselState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final data = await _repository.getAllPurchases();
-      final purchases = data.map((p) => DieselPurchase.fromJson(p as Map<String, dynamic>)).toList();
-      state = state.copyWith(purchases: purchases);
+      final purchases = data.map((p) => DieselPurchase.fromJson(p as Map<String, dynamic>)).toList()
+        ..sort(_comparePurchasesNewestFirst);
+      state = state.copyWith(isLoading: false, purchases: purchases);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -233,8 +252,9 @@ class DieselNotifier extends StateNotifier<DieselState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final data = await _repository.getAllConsumption();
-      final consumption = data.map((c) => DieselConsumption.fromJson(c as Map<String, dynamic>)).toList();
-      state = state.copyWith(consumption: consumption);
+      final consumption = data.map((c) => DieselConsumption.fromJson(c as Map<String, dynamic>)).toList()
+        ..sort(_compareConsumptionNewestFirst);
+      state = state.copyWith(isLoading: false, consumption: consumption);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -246,7 +266,8 @@ class DieselNotifier extends StateNotifier<DieselState> {
   Future<void> loadVehicles() async {
     try {
       final data = await _repository.getVehicles();
-      final vehicles = data.map((v) => VehicleSimple.fromJson(v as Map<String, dynamic>)).toList();
+      final vehicles = data.map((v) => VehicleSimple.fromJson(v as Map<String, dynamic>)).toList()
+        ..sort(_compareVehiclesByNumber);
       state = state.copyWith(vehicles: vehicles);
     } catch (e) {
       state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
@@ -267,7 +288,7 @@ class DieselNotifier extends StateNotifier<DieselState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       await _repository.createPurchase(data);
-      await loadAllData();
+      loadAllData(); // reload in background
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -281,7 +302,7 @@ class DieselNotifier extends StateNotifier<DieselState> {
   Future<bool> deletePurchase(int id) async {
     try {
       await _repository.deletePurchase(id);
-      await loadAllData();
+      loadAllData(); // reload in background
       return true;
     } catch (e) {
       state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
@@ -305,7 +326,7 @@ class DieselNotifier extends StateNotifier<DieselState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       await _repository.createConsumption(data);
-      await loadAllData();
+      loadAllData(); // reload in background
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -319,7 +340,7 @@ class DieselNotifier extends StateNotifier<DieselState> {
   Future<bool> deleteConsumption(int id) async {
     try {
       await _repository.deleteConsumption(id);
-      await loadAllData();
+      loadAllData(); // reload in background
       return true;
     } catch (e) {
       state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
@@ -331,7 +352,7 @@ class DieselNotifier extends StateNotifier<DieselState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       await _repository.updateConsumption(id, data);
-      await loadAllData();
+      loadAllData(); // reload in background
       return true;
     } catch (e) {
       state = state.copyWith(

@@ -7,6 +7,12 @@ final billingRepositoryProvider = Provider<BillingRepository>((ref) {
   return BillingRepository();
 });
 
+int _compareInvoicesNewestFirst(Invoice a, Invoice b) {
+  final byDate = b.invoiceDate.compareTo(a.invoiceDate);
+  if (byDate != 0) return byDate;
+  return b.id.compareTo(a.id);
+}
+
 class BillingState {
   final bool isLoading;
   final List<Invoice> invoices;
@@ -276,8 +282,9 @@ class BillingNotifier extends StateNotifier<BillingState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final data = await _repository.getInvoices(status: status);
-      final invoices = data.map((i) => Invoice.fromJson(i as Map<String, dynamic>)).toList();
-      state = state.copyWith(invoices: invoices);
+      final invoices = data.map((i) => Invoice.fromJson(i as Map<String, dynamic>)).toList()
+        ..sort(_compareInvoicesNewestFirst);
+      state = state.copyWith(isLoading: false, invoices: invoices);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
     }
@@ -296,8 +303,7 @@ class BillingNotifier extends StateNotifier<BillingState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       await _repository.createInvoice(data);
-      await loadInvoices();
-      await loadStats();
+      loadAllData(); // reload in background
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
@@ -308,8 +314,7 @@ class BillingNotifier extends StateNotifier<BillingState> {
   Future<bool> updateInvoiceStatus(int id, String status) async {
     try {
       await _repository.updateInvoiceStatus(id, status);
-      await loadInvoices();
-      await loadStats();
+      loadAllData(); // reload in background
       return true;
     } catch (e) {
       state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
@@ -321,8 +326,7 @@ class BillingNotifier extends StateNotifier<BillingState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       await _repository.updateInvoice(id, data);
-      await loadInvoices();
-      await loadStats();
+      loadAllData(); // reload in background
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
@@ -333,8 +337,7 @@ class BillingNotifier extends StateNotifier<BillingState> {
   Future<bool> deleteInvoice(int id) async {
     try {
       await _repository.deleteInvoice(id);
-      await loadInvoices();
-      await loadStats();
+      loadAllData(); // reload in background
       return true;
     } catch (e) {
       state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
@@ -366,7 +369,7 @@ class BillingNotifier extends StateNotifier<BillingState> {
         'reference_number': reference,
         'payment_date': billingDateParam(paymentDate ?? billingTodayIstDate()),
       });
-      state = state.copyWith(isLoading: false);
+      loadAllData(); // reload in background
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString().replaceAll('Exception: ', ''));
